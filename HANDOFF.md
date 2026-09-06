@@ -85,7 +85,8 @@ The exported policy is a simplified game, not the real one:
 
 1. Re-solve with zhai entry, fei, and quantity to 10 in the action set. Keep the same
    export format so the UI needs no change — just re-run `npm run gto:build`.
-2. Define Level 3. Easy and Hard are built; the third level is still an open question.
+2. Re-solve, then swap the policy in with `npm run gto:build` — the Hard bot picks it
+   up with no code change. Two difficulty levels is settled; do not add a third.
 3. Then V2 (2–6 players) and V3 (netplay), per `ASTRA_AI_STRATEGY_HANDOFF.md`.
 
 ## Open rule questions (unchanged, still blocking a full solve)

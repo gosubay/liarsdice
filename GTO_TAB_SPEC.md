@@ -106,4 +106,6 @@ Rules the Hard bot follows:
   goes off-book on 0.00% of its decisions when both sides bid sanely. Off-book only
   fires when a human jumps the quantity past 7.
 
-A third level is not yet defined.
+**Two levels only** (decided 2026-09-07). Do not add a third without being asked.
+If that changes, `DIFFICULTIES` in `app/page.tsx` drives the selector — add the level
+there, add its copy to both language blocks, and give it a branch in the AI effect.
