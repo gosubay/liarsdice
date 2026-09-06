@@ -39,3 +39,6 @@ next-env.d.ts
 
 # typescript incremental build cache
 *.tsbuildinfo
+
+# github pages build
+/dist-pages/

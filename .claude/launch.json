@@ -1,6 +1,7 @@
 {
   "version": "0.0.1",
   "configurations": [
-    { "name": "liarsdice", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev"], "port": 3000 }
+    { "name": "liarsdice", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev"], "port": 3000 },
+    { "name": "liarsdice-pages", "runtimeExecutable": "npx", "runtimeArgs": ["vite", "preview", "--config", "vite.static.config.ts", "--port", "4173"], "port": 4173, "url": "http://localhost:4173" }
   ]
 }

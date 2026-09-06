@@ -10,6 +10,24 @@ deployed to Cloudflare via the OpenAI Sites plugin. V1 is one human versus one A
 - Repo: <https://github.com/gosubay/liarsdice>
 - Local: `C:\Claude\Code\Liar's Dice`
 - Private deployment: <https://liarsdice.galvin-bay.chatgpt.site>
+- Public GitHub Pages: <https://gosubay.github.io/liarsdice/>
+
+## Two build paths — do not confuse them
+
+`vinext build` targets **Cloudflare Workers** and emits no `index.html`, so it cannot
+run on GitHub Pages. A second, client-only static build exists purely for Pages:
+
+| Command | Config | Output | Host |
+|---|---|---|---|
+| `npm run build` | `vite.config.ts` | `dist/` (Worker) | Cloudflare / OpenAI Sites |
+| `npm run build:pages` | `vite.static.config.ts` | `dist-pages/` (static) | GitHub Pages |
+
+The static build mounts `app/page.tsx` client-side from `static/main.tsx`, loads Geist
+from Google Fonts instead of `next/font`, and sets base `/liarsdice/`. It is deployed
+by `.github/workflows/pages.yml` on every push to `main`.
+
+Preview it locally with `npx vite preview --config vite.static.config.ts`, then open
+<http://localhost:4173/liarsdice/> — the base path matters.
 
 There is **no separate `index.html` game**. The two-player game built with Codex *is*
 `app/page.tsx`; it was pushed as commit `985a03b`.
