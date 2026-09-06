@@ -1,0 +1,76 @@
+# HANDOFF — Liar's Dice (大话骰)
+
+Last updated: 2026-09-07 (SGT)
+
+## What this project is
+
+A bilingual (EN/中文) China-KTV-rules Liar's Dice web app. React + Vinext static site,
+deployed to Cloudflare via the OpenAI Sites plugin. V1 is one human versus one AI.
+
+- Repo: <https://github.com/gosubay/liarsdice>
+- Local: `C:\Claude\Code\Liar's Dice`
+- Private deployment: <https://liarsdice.galvin-bay.chatgpt.site>
+
+There is **no separate `index.html` game**. The two-player game built with Codex *is*
+`app/page.tsx`; it was pushed as commit `985a03b`.
+
+## Current state
+
+Two top-level tabs in the header:
+
+1. **Play** — the human-vs-AI game. Unchanged apart from the W–L record display.
+2. **GTO Strategy** — new. Browse a solved MCCFR strategy across all 252 hands and
+   65 possible current bids. See `GTO_TAB_SPEC.md` for the full spec.
+
+Verified working in the dev server on desktop (1280×900) and mobile (375×812).
+`npm run build`, `npx tsc --noEmit`, and `npx oxlint app/gto.tsx app/die.tsx` are clean.
+`app/page.tsx` still has two pre-existing a11y lint errors in the rules modal.
+
+## Commands
+
+```
+npm run dev          # dev server on :3000
+npm run build        # production build
+npm run gto:build    # regenerate app/gto-policy.json from the raw solve
+npm run simulate     # heuristic bot tournament
+```
+
+## What the solver actually says
+
+From the shipped policy, weighted by hand frequency:
+
+- Opening bids land on a face the opener holds **none of** 16.8% of the time. The
+  earlier heuristic tournaments concluded 0% opening bluffing was best; that was an
+  artifact of every bot sharing the same weak continuation logic.
+- Opening face choice is polarised: 16.8% zero-support, 20.3% one, 63% two-or-more.
+- ~31% of openings are zhai.
+- Challenge thresholds are sharp and monotone in support. Facing 6 × sixes wild, the
+  challenge rate by matching dice held is 100 / 100 / 95 / 64 / 1 / 1.
+- Holding five sixes and facing 3 × sixes, it raises to 4 × sixes only 5.7% of the
+  time — it prefers 3 × ones zhai (34%) or 4 × fives (30%). It hides the monster.
+
+## Known gaps in the solve — fix before calling this GTO
+
+The exported policy is a simplified game, not the real one:
+
+1. No zhai entry from a normal bid (rule 10) and no fei break-out (rule 11). Once the
+   auction starts wild it stays wild; once zhai, always zhai. Two half-games.
+2. Quantity capped at 7, not the true 10.
+3. No bid history — an information set is only (hand, current bid, mode).
+4. Only seat P0 exported.
+5. No straight-reroll decision represented.
+6. `2 × ones` can be opened but has no facing-state entry.
+
+## Next steps
+
+1. Re-solve with zhai entry, fei, and quantity to 10 in the action set. Keep the same
+   export format so the UI needs no change — just re-run `npm run gto:build`.
+2. Wire the policy into the Play tab's AI opponent, replacing the current random bot.
+3. Then V2 (2–6 players) and V3 (netplay), per `ASTRA_AI_STRATEGY_HANDOFF.md`.
+
+## Open rule questions (unchanged, still blocking a full solve)
+
+- Does fei permit exactly double the zhai quantity, or any quantity at least double?
+- On a five-distinct reroll, are all five dice rerolled? Is the reroll public?
+- Are opening `3 × ones zhai` and opening explicit zhai bids on 2–6 permitted?
+- Is the maximum legal quantity capped at the ten dice in play?

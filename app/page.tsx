@@ -10,12 +10,14 @@ import {
   Infinity as InfinityIcon,
   Languages,
   RotateCcw,
-  ShieldQuestion,
   Sparkles,
   Trophy,
   UserRound,
   X,
 } from 'lucide-react';
+
+import { Die } from './die';
+import { GtoStrategy } from './gto';
 
 type Language = 'en' | 'zh';
 type MatchMode = 'five' | 'unlimited';
@@ -50,7 +52,7 @@ const copy = {
     kicker: 'China KTV rules', title: "Liar's Dice", intro: 'Five dice. One rival. Read the room and call the bluff.',
     mode: 'Choose a match', five: 'First to 5 losses', fiveNote: 'A quick competitive match', unlimited: 'Unlimited', unlimitedNote: 'Keep the table rolling',
     opponent: 'You vs Basic AI', start: 'Take a seat', rulesLine: '1 is wild · Pure bids disable wilds · A straight may re-roll',
-    you: 'You', ai: 'AI', losses: 'Losses', round: 'Round', turn: 'Your turn', aiTurn: 'AI is thinking', currentBid: 'Current bid', opening: 'Make the opening bid',
+    you: 'You', ai: 'AI', losses: 'Losses', record: 'W–L', round: 'Round', turn: 'Your turn', aiTurn: 'AI is thinking', currentBid: 'Current bid', opening: 'Make the opening bid',
     quantity: 'Quantity', face: 'Face', zhai: 'Pure · Zhai', zhaiHelp: 'Wild ones do not count', bid: 'Place bid', challenge: 'Challenge',
     reroll: 'Re-roll straight', rerolled: 'Straight re-rolled', concealed: 'Hidden dice', noBid: 'No bid yet',
     challenged: 'Bid challenged', actual: 'matching dice', bidHeld: 'The bid holds.', bidFailed: 'The bid was a bluff.',
@@ -60,12 +62,13 @@ const copy = {
     fei: 'Fei · 飞', normal: 'Wild', rulesTitle: 'Table rules', close: 'Close',
     rules: ['Each player always rolls five dice.', 'On a normal bid, ones are wild.', 'Bids rank 1 › 6 › 5 › 4 › 3 › 2.', 'A bid on ones is automatically zhai.', 'In zhai, wild ones do not count.', 'Break zhai with at least double the quantity.', 'Five different faces may be re-rolled once.', 'The round loser gains one loss.'],
     starter: 'Round loser starts', setup: 'Match setup', menu: 'Rules',
+    tabPlay: 'Play', tabGto: 'GTO Strategy',
   },
   zh: {
     kicker: '中国 KTV 酒桌规则', title: '大话骰', intro: '五粒骰，一个对手。看穿虚实，开出胜负。',
     mode: '选择局制', five: '先负 5 局', fiveNote: '节奏明快的对局', unlimited: '无限局', unlimitedNote: '想玩多久都可以',
     opponent: '你 对 基础电脑', start: '入座开局', rulesLine: '一点万能 · 斋叫不计万能 · 顺子可以重摇',
-    you: '你', ai: '电脑', losses: '负局', round: '第', turn: '轮到你', aiTurn: '电脑思考中', currentBid: '当前叫骰', opening: '请先叫骰',
+    you: '你', ai: '电脑', losses: '负局', record: '胜–负', round: '第', turn: '轮到你', aiTurn: '电脑思考中', currentBid: '当前叫骰', opening: '请先叫骰',
     quantity: '数量', face: '点数', zhai: '斋', zhaiHelp: '一点不作万能', bid: '叫骰', challenge: '开',
     reroll: '顺子重摇', rerolled: '顺子已重摇', concealed: '骰子未开', noBid: '尚未叫骰',
     challenged: '开骰', actual: '粒符合', bidHeld: '叫骰成立。', bidFailed: '叫骰不成立。',
@@ -75,16 +78,9 @@ const copy = {
     fei: '飞', normal: '万能', rulesTitle: '桌面规则', close: '关闭',
     rules: ['每位玩家始终摇五粒骰。', '普通叫骰时，一点可作万能。', '点数顺序为 1 › 6 › 5 › 4 › 3 › 2。', '叫一点自动视为斋。', '斋叫时，一点不作万能。', '破斋必须至少叫双倍数量。', '五个不同点数可选择重摇一次。', '每局输家增加一负。'],
     starter: '输家下一局先叫', setup: '比赛设置', menu: '规则',
+    tabPlay: '对局', tabGto: 'GTO 策略',
   },
 } as const;
-
-function Die({ value, hidden = false, accent = false }: { value?: number; hidden?: boolean; accent?: boolean }) {
-  return (
-    <span className={`die ${hidden ? 'die-hidden' : ''} ${accent ? 'die-accent' : ''}`} aria-label={hidden ? 'Hidden die' : `Die showing ${value}`}>
-      {hidden ? <ShieldQuestion size={25} /> : <span className={`pip-face face-${value}`}>{Array.from({ length: value ?? 0 }, (_, i) => <i key={i} />)}</span>}
-    </span>
-  );
-}
 
 function bidIsLegal(next: Bid, current: Bid | null) {
   if (next.quantity < 1 || next.quantity > 10) return false;
@@ -97,6 +93,7 @@ export default function Home() {
   const [language, setLanguage] = useState<Language>('en');
   const [mode, setMode] = useState<MatchMode>('five');
   const [screen, setScreen] = useState<'setup' | 'game'>('setup');
+  const [tab, setTab] = useState<'play' | 'gto'>('play');
   const [showRules, setShowRules] = useState(false);
   const [round, setRound] = useState(1);
   const [losses, setLosses] = useState({ human: 0, ai: 0 });
@@ -224,20 +221,26 @@ export default function Home() {
   const swapLanguage = () => setLanguage(language === 'en' ? 'zh' : 'en');
 
   return (
-    <main className="min-h-screen overflow-hidden bg-background text-foreground">
+    <main className={`min-h-screen bg-background text-foreground ${tab === 'gto' ? '' : 'overflow-hidden'}`}>
       <div className="table-glow" aria-hidden="true" />
       <header className="site-header">
-        <button className="brand" onClick={() => setScreen('setup')} aria-label={language === 'en' ? 'Return to setup' : '返回设置'}>
+        <button className="brand" onClick={() => { setTab('play'); setScreen('setup'); }} aria-label={language === 'en' ? 'Return to setup' : '返回设置'}>
           <span className="logo-die" aria-hidden="true"><i /><i /><i /></span>
           <span>LIARSDICE</span>
         </button>
+        <nav className="tab-nav" aria-label={t.setup}>
+          <button className={tab === 'play' ? 'selected' : ''} aria-pressed={tab === 'play'} onClick={() => setTab('play')}>{t.tabPlay}</button>
+          <button className={tab === 'gto' ? 'selected' : ''} aria-pressed={tab === 'gto'} onClick={() => setTab('gto')}>{t.tabGto}</button>
+        </nav>
         <div className="header-actions">
-          {screen === 'game' && <button className="icon-button" onClick={() => setShowRules(true)}><CircleHelp size={17} /><span>{t.menu}</span></button>}
+          {tab === 'play' && screen === 'game' && <button className="icon-button" onClick={() => setShowRules(true)}><CircleHelp size={17} /><span>{t.menu}</span></button>}
           <button className="language-button" onClick={swapLanguage} aria-label={language === 'en' ? 'Switch to Chinese' : '切换到英文'}><Languages size={16} />{language === 'en' ? '中文' : 'EN'}</button>
         </div>
       </header>
 
-      {screen === 'setup' ? (
+      {tab === 'gto' ? (
+        <GtoStrategy language={language} />
+      ) : screen === 'setup' ? (
         <section className="setup-layout">
           <div className="max-w-xl">
             <p className="eyebrow">{t.kicker}</p>
@@ -269,7 +272,7 @@ export default function Home() {
 
           <div className="players-row">
             <article className={`player-card ${turn === 'human' && phase === 'playing' ? 'active' : ''}`}>
-              <div className="player-meta"><span className="avatar human"><UserRound size={19} /></span><div><b>{t.you}</b><small>{starter === 'human' ? t.starter : ' '}</small></div><span className="loss-count"><em>{losses.human}</em>{t.losses}</span></div>
+              <div className="player-meta"><span className="avatar human"><UserRound size={19} /></span><div><b>{t.you}</b><small>{starter === 'human' ? t.starter : ' '}</small></div><span className="score-record" aria-label={`${t.you} ${t.record}: ${losses.ai}–${losses.human}`}><small>{t.record}</small><em>{losses.ai}<i>–</i>{losses.human}</em></span></div>
               <div className="dice-row">{humanDice.map((die, i) => <Die key={`${round}-h-${i}`} value={die} accent={die === 1} />)}</div>
               {phase === 'playing' && isStraight(humanDice) && !didReroll && (
                 <button className="reroll-button" onClick={() => { setHumanDice(rollFive()); setDidReroll(true); setNotice(t.rerolled); }}><Sparkles size={15} />{t.reroll}</button>
@@ -277,7 +280,7 @@ export default function Home() {
             </article>
 
             <article className={`player-card ${turn === 'ai' && phase === 'playing' ? 'active' : ''}`}>
-              <div className="player-meta"><span className="avatar ai"><Bot size={19} /></span><div><b>{t.ai}</b><small>{starter === 'ai' ? t.starter : ' '}</small></div><span className="loss-count"><em>{losses.ai}</em>{t.losses}</span></div>
+              <div className="player-meta"><span className="avatar ai"><Bot size={19} /></span><div><b>{t.ai}</b><small>{starter === 'ai' ? t.starter : ' '}</small></div><span className="score-record" aria-label={`${t.ai} ${t.record}: ${losses.human}–${losses.ai}`}><small>{t.record}</small><em>{losses.human}<i>–</i>{losses.ai}</em></span></div>
               <div className="dice-row">{aiDice.map((die, i) => <Die key={`${round}-a-${i}`} value={phase === 'playing' ? undefined : die} hidden={phase === 'playing'} accent={phase !== 'playing' && die === 1} />)}</div>
             </article>
           </div>

@@ -10,7 +10,11 @@
     "build": "vinext build",
     "start": "wrangler dev --config dist/server/wrangler.json",
     "lint": "oxlint",
-    "format": "oxfmt"
+    "format": "oxfmt",
+    "simulate": "node simulation/tournament.mjs",
+    "simulate:test": "node simulation/self-test.mjs",
+    "simulate:search": "node simulation/parameter-search.mjs",
+    "gto:build": "node simulation/build-gto-policy.mjs simulation/solves/mccfr-average-policy.json"
   },
   "dependencies": {
     "react": "19.2.6",
