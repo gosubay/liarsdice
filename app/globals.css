@@ -160,3 +160,19 @@ button:disabled { cursor: not-allowed; }
   .tab-nav button { padding: 8px 12px; font-size: 12px; }
   .site-header { flex-wrap: wrap; height: auto; gap: 10px; padding: 14px 16px; }
 }
+
+/* ---------- Bot difficulty ---------- */
+.difficulty-heading { margin: 26px 0 14px; }
+.difficulty-row { display: grid; gap: 10px; }
+.difficulty-card { display: grid; width: 100%; min-height: 70px; grid-template-columns: 34px 1fr 18px; align-items: center; gap: 14px; border: 1px solid var(--border); border-radius: 16px; background: rgba(255,255,255,.025); padding: 13px 15px; color: var(--foreground); cursor: pointer; transition: .18s ease; text-align: left; }
+.difficulty-card:hover { transform: translateY(-1px); background: rgba(255,255,255,.045); }
+.difficulty-card.selected { border-color: rgba(233,74,60,.65); background: rgba(233,74,60,.075); }
+.difficulty-rank { display: grid; width: 34px; height: 34px; place-items: center; border: 1px solid var(--border); border-radius: 11px; background: rgba(255,255,255,.05); color: #b9b6af; font-size: 14px; font-weight: 750; font-variant-numeric: tabular-nums; }
+.difficulty-card.selected .difficulty-rank { border-color: rgba(233,74,60,.4); background: rgba(233,74,60,.14); color: #ff8578; }
+.difficulty-card b, .difficulty-card small { display: block; }
+.difficulty-card b { font-size: 15px; font-weight: 650; }
+.difficulty-card small { margin-top: 3px; color: #858681; font-size: 12px; line-height: 1.45; }
+
+.difficulty-tag { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; border: 1px solid var(--border); border-radius: 999px; padding: 2px 8px; color: #9a9c97; font-size: 10px; font-style: normal; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; vertical-align: 2px; }
+.difficulty-tag.hard { border-color: rgba(233,74,60,.4); background: rgba(233,74,60,.1); color: #ff8578; }
+.difficulty-tag.offbook { border-color: rgba(217,164,65,.4); background: rgba(217,164,65,.1); color: #d9a441; cursor: help; }

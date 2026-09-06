@@ -83,3 +83,27 @@ State these in the UI; do not call this GTO without qualification.
 
 Every string lives in `gtoCopy` in `app/gto.tsx`, keyed `en` / `zh`. The tab follows
 the app-wide language toggle; never show both languages at once.
+
+## Bot difficulty (Play tab)
+
+The same policy drives the Hard bot. `app/policy.ts` is the single loader, so the
+578 KB bundle is fetched at most once no matter which tab asks for it.
+
+| Level | Name | Behaviour |
+|---|---|---|
+| 1 | Easy | The original V1 bot: near-random legal bids, challenges on a whim |
+| 2 | Hard | Samples the solver's mix for its hand and the bid on the table |
+
+Rules the Hard bot follows:
+
+- Every candidate action is filtered through the live `bidIsLegal` before sampling,
+  and the remaining probabilities are renormalised. An abstraction mismatch can
+  therefore never produce an illegal bid.
+- Spots outside the solve — quantity above 7, or a bid the export never faced —
+  return null and fall through to the Easy bot. When that happens the AI's card
+  shows an `off-book` tag for the rest of the round.
+- Measured over 200,000 seat-swapped rounds: **Hard beats Easy 76.2% to 23.8%**, and
+  goes off-book on 0.00% of its decisions when both sides bid sanely. Off-book only
+  fires when a human jumps the quantity past 7.
+
+A third level is not yet defined.

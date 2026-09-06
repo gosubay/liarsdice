@@ -36,7 +36,9 @@ There is **no separate `index.html` game**. The two-player game built with Codex
 
 Two top-level tabs in the header:
 
-1. **Play** — the human-vs-AI game. Unchanged apart from the W–L record display.
+1. **Play** — the human-vs-AI game, with a bot difficulty selector (Easy / Hard) and
+   an explicit Start game button on the setup card. Hard plays the CFR-solved policy
+   and beats Easy 76.2% to 23.8% over 200,000 seat-swapped rounds.
 2. **GTO Strategy** — new. Browse a solved MCCFR strategy across all 252 hands and
    65 possible current bids. See `GTO_TAB_SPEC.md` for the full spec.
 
@@ -83,7 +85,7 @@ The exported policy is a simplified game, not the real one:
 
 1. Re-solve with zhai entry, fei, and quantity to 10 in the action set. Keep the same
    export format so the UI needs no change — just re-run `npm run gto:build`.
-2. Wire the policy into the Play tab's AI opponent, replacing the current random bot.
+2. Define Level 3. Easy and Hard are built; the third level is still an open question.
 3. Then V2 (2–6 players) and V3 (netplay), per `ASTRA_AI_STRATEGY_HANDOFF.md`.
 
 ## Open rule questions (unchanged, still blocking a full solve)

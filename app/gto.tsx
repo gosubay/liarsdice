@@ -2,16 +2,9 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { Die } from './die';
-import policyUrl from './gto-policy.json?url';
+import { loadPolicy, type Policy } from './policy';
 
 type Language = 'en' | 'zh';
-type Policy = {
-  acts: string[];
-  hands: string[];
-  w: number[];
-  states: string[];
-  d: Record<string, Record<string, [number, number][]>>;
-};
 
 const QUANTITIES = [0, 2, 3, 4, 5, 6, 7];
 const FACES = [1, 2, 3, 4, 5, 6];
@@ -119,8 +112,7 @@ export function GtoStrategy({ language }: { language: Language }) {
 
   useEffect(() => {
     let live = true;
-    fetch(policyUrl)
-      .then((response) => response.json() as Promise<Policy>)
+    loadPolicy()
       .then((data) => { if (live) setPolicy(data); })
       .catch(() => undefined);
     return () => { live = false; };

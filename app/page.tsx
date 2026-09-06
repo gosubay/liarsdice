@@ -11,6 +11,7 @@ import {
   Languages,
   RotateCcw,
   Sparkles,
+  Swords,
   Trophy,
   UserRound,
   X,
@@ -18,10 +19,12 @@ import {
 
 import { Die } from './die';
 import { GtoStrategy } from './gto';
+import { loadPolicy, samplePolicyMove, type Policy, type PolicyMove } from './policy';
 
 type Language = 'en' | 'zh';
 type MatchMode = 'five' | 'unlimited';
 type Player = 'human' | 'ai';
+type Difficulty = 'easy' | 'hard';
 type Phase = 'playing' | 'revealed' | 'finished';
 type Bid = { quantity: number; face: number; zhai: boolean };
 type Result = { loser: Player; actual: number; bidder: Player; challenger: Player };
@@ -41,6 +44,8 @@ type WebMCPDocument = Document & {
     ) => void | Promise<void>;
   };
 };
+
+const DIFFICULTIES: Difficulty[] = ['easy', 'hard'];
 
 const FACE_ORDER = [2, 3, 4, 5, 6, 1];
 const rollFive = () => Array.from({ length: 5 }, () => Math.floor(Math.random() * 6) + 1);
@@ -63,6 +68,11 @@ const copy = {
     rules: ['Each player always rolls five dice.', 'On a normal bid, ones are wild.', 'Bids rank 1 › 6 › 5 › 4 › 3 › 2.', 'A bid on ones is automatically zhai.', 'In zhai, wild ones do not count.', 'Break zhai with at least double the quantity.', 'Five different faces may be re-rolled once.', 'The round loser gains one loss.'],
     starter: 'Round loser starts', setup: 'Match setup', menu: 'Rules',
     tabPlay: 'Play', tabGto: 'GTO Strategy',
+    difficulty: 'Bot difficulty', startGame: 'Start game', opponentWith: (level: string) => `You vs ${level} AI`,
+    easy: 'Easy', easyNote: 'Bids almost at random and challenges on a whim',
+    hard: 'Hard', hardNote: 'Plays the CFR-solved strategy from the GTO tab',
+    solverFallback: 'off-book',
+    solverFallbackHelp: 'The solve does not cover this bid, so the bot fell back to basic play.',
   },
   zh: {
     kicker: '中国 KTV 酒桌规则', title: '大话骰', intro: '五粒骰，一个对手。看穿虚实，开出胜负。',
@@ -79,6 +89,11 @@ const copy = {
     rules: ['每位玩家始终摇五粒骰。', '普通叫骰时，一点可作万能。', '点数顺序为 1 › 6 › 5 › 4 › 3 › 2。', '叫一点自动视为斋。', '斋叫时，一点不作万能。', '破斋必须至少叫双倍数量。', '五个不同点数可选择重摇一次。', '每局输家增加一负。'],
     starter: '输家下一局先叫', setup: '比赛设置', menu: '规则',
     tabPlay: '对局', tabGto: 'GTO 策略',
+    difficulty: '电脑难度', startGame: '开始对局', opponentWith: (level: string) => `你 对 ${level}电脑`,
+    easy: '简单', easyNote: '几乎随机叫骰，随兴开骰',
+    hard: '困难', hardNote: '使用 GTO 页面里的 CFR 求解策略',
+    solverFallback: '超出求解',
+    solverFallbackHelp: '此叫骰不在求解范围内，电脑改用基础打法。',
   },
 } as const;
 
@@ -92,6 +107,9 @@ function bidIsLegal(next: Bid, current: Bid | null) {
 export default function Home() {
   const [language, setLanguage] = useState<Language>('en');
   const [mode, setMode] = useState<MatchMode>('five');
+  const [difficulty, setDifficulty] = useState<Difficulty>('easy');
+  const [policy, setPolicy] = useState<Policy | null>(null);
+  const [wentOffBook, setWentOffBook] = useState(false);
   const [screen, setScreen] = useState<'setup' | 'game'>('setup');
   const [tab, setTab] = useState<'play' | 'gto'>('play');
   const [showRules, setShowRules] = useState(false);
@@ -109,6 +127,13 @@ export default function Home() {
   const [notice, setNotice] = useState('');
   const t = copy[language];
 
+  useEffect(() => {
+    if (difficulty !== 'hard' || policy) return;
+    let live = true;
+    loadPolicy().then((data) => { if (live) setPolicy(data); }).catch(() => undefined);
+    return () => { live = false; };
+  }, [difficulty, policy]);
+
   const startRound = useCallback((roundStarter: Player, roundNumber?: number) => {
     const nextHuman = rollFive();
     let nextAi = rollFive();
@@ -122,6 +147,7 @@ export default function Home() {
     setResult(null);
     setPhase('playing');
     setDidReroll(false);
+    setWentOffBook(false);
     setNotice('');
     if (roundNumber) setRound(roundNumber);
   }, []);
@@ -160,31 +186,44 @@ export default function Home() {
     setStarter(loser);
   }, [aiDice, currentBid, humanDice, losses, mode]);
 
+  // Easy: near-random legal play. This is the original V1 bot, kept as the floor.
+  const easyMove = useCallback((): PolicyMove => {
+    if (currentBid && (currentBid.quantity >= 8 || Math.random() < 0.18)) return { kind: 'challenge' };
+    const candidates: Bid[] = [];
+    for (let quantity = 1; quantity <= 10; quantity++) {
+      for (const face of FACE_ORDER) {
+        const pureOptions = face === 1 ? [true] : [false, true];
+        for (const zhai of pureOptions) {
+          const candidate = { quantity, face, zhai };
+          if (bidIsLegal(candidate, currentBid)) candidates.push(candidate);
+        }
+      }
+    }
+    const shortlist = candidates.slice(0, Math.min(7, candidates.length));
+    const choice = shortlist[Math.floor(Math.random() * shortlist.length)];
+    return choice ? { kind: 'bid', bid: choice } : { kind: 'challenge' };
+  }, [currentBid]);
+
   useEffect(() => {
     if (screen !== 'game' || phase !== 'playing' || turn !== 'ai') return;
     const timer = window.setTimeout(() => {
-      if (currentBid && (currentBid.quantity >= 8 || Math.random() < 0.18)) {
-        challenge('ai');
-        return;
+      let move: PolicyMove | null = null;
+
+      if (difficulty === 'hard' && policy) {
+        move = samplePolicyMove(policy, aiDice, currentBid, (candidate) => (
+          candidate.kind === 'challenge' ? Boolean(currentBid) : bidIsLegal(candidate.bid, currentBid)
+        ));
+        // Quantities above seven, and the zhai/fei transitions the export omits, land
+        // outside the solve. Drop to the easy bot rather than invent a move.
+        if (!move) setWentOffBook(true);
       }
 
-      const candidates: Bid[] = [];
-      for (let quantity = 1; quantity <= 10; quantity++) {
-        for (const face of FACE_ORDER) {
-          const pureOptions = face === 1 ? [true] : [false, true];
-          for (const zhai of pureOptions) {
-            const candidate = { quantity, face, zhai };
-            if (bidIsLegal(candidate, currentBid)) candidates.push(candidate);
-          }
-        }
-      }
-      const shortlist = candidates.slice(0, Math.min(7, candidates.length));
-      const choice = shortlist[Math.floor(Math.random() * shortlist.length)];
-      if (choice) placeBid(choice, 'ai');
-      else challenge('ai');
+      const chosen = move ?? easyMove();
+      if (chosen.kind === 'bid') placeBid(chosen.bid, 'ai');
+      else if (currentBid) challenge('ai');
     }, 720);
     return () => window.clearTimeout(timer);
-  }, [challenge, currentBid, phase, placeBid, screen, turn]);
+  }, [aiDice, challenge, currentBid, difficulty, easyMove, phase, placeBid, policy, screen, turn]);
 
   useEffect(() => {
     const context = (document as WebMCPDocument).modelContext;
@@ -246,7 +285,7 @@ export default function Home() {
             <p className="eyebrow">{t.kicker}</p>
             <h1 className="display-title">{t.title}</h1>
             <p className="intro-copy">{t.intro}</p>
-            <div className="opponent-line"><Bot size={18} /> <span>{t.opponent}</span></div>
+            <div className="opponent-line"><Bot size={18} /> <span>{t.opponentWith(difficulty === 'easy' ? t.easy : t.hard)}</span></div>
           </div>
           <div className="setup-card">
             <div className="card-heading"><p>{t.mode}</p><span className="round-pill">V1</span></div>
@@ -258,7 +297,22 @@ export default function Home() {
                 <span className="mode-icon"><InfinityIcon size={20} /></span><span className="text-left"><b>{t.unlimited}</b><small>{t.unlimitedNote}</small></span><span className="radio-dot" />
               </button>
             </div>
-            <button className="primary-button mt-5" onClick={() => startMatch()}>{t.start}<span>→</span></button>
+            <div className="card-heading difficulty-heading"><p>{t.difficulty}</p></div>
+            <div className="difficulty-row">
+              {DIFFICULTIES.map((level) => (
+                <button
+                  key={level}
+                  className={`difficulty-card ${difficulty === level ? 'selected' : ''}`}
+                  aria-pressed={difficulty === level}
+                  onClick={() => setDifficulty(level)}
+                >
+                  <span className="difficulty-rank">{level === 'easy' ? '1' : '2'}</span>
+                  <span className="text-left"><b>{level === 'easy' ? t.easy : t.hard}</b><small>{level === 'easy' ? t.easyNote : t.hardNote}</small></span>
+                  <span className="radio-dot" />
+                </button>
+              ))}
+            </div>
+            <button className="primary-button mt-5" onClick={() => startMatch()}>{t.startGame}<span>→</span></button>
             <p className="fine-print">{t.rulesLine}</p>
           </div>
         </section>
@@ -280,7 +334,7 @@ export default function Home() {
             </article>
 
             <article className={`player-card ${turn === 'ai' && phase === 'playing' ? 'active' : ''}`}>
-              <div className="player-meta"><span className="avatar ai"><Bot size={19} /></span><div><b>{t.ai}</b><small>{starter === 'ai' ? t.starter : ' '}</small></div><span className="score-record" aria-label={`${t.ai} ${t.record}: ${losses.human}–${losses.ai}`}><small>{t.record}</small><em>{losses.human}<i>–</i>{losses.ai}</em></span></div>
+              <div className="player-meta"><span className="avatar ai"><Bot size={19} /></span><div><b>{t.ai}<em className={`difficulty-tag ${difficulty}`}><Swords size={11} />{difficulty === 'easy' ? t.easy : t.hard}</em>{wentOffBook && <em className="difficulty-tag offbook" title={t.solverFallbackHelp}>{t.solverFallback}</em>}</b><small>{starter === 'ai' ? t.starter : ' '}</small></div><span className="score-record" aria-label={`${t.ai} ${t.record}: ${losses.human}–${losses.ai}`}><small>{t.record}</small><em>{losses.human}<i>–</i>{losses.ai}</em></span></div>
               <div className="dice-row">{aiDice.map((die, i) => <Die key={`${round}-a-${i}`} value={phase === 'playing' ? undefined : die} hidden={phase === 'playing'} accent={phase !== 'playing' && die === 1} />)}</div>
             </article>
           </div>
