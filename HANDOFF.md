@@ -34,13 +34,18 @@ There is **no separate `index.html` game**. The two-player game built with Codex
 
 ## Current state
 
-Two top-level tabs in the header:
+Five top-level tabs, in this order — the order is a learning path and is deliberate:
 
-1. **Play** — the human-vs-AI game, with a bot difficulty selector (Easy / Hard) and
-   an explicit Start game button on the setup card. Hard plays the CFR-solved policy
-   and beats Easy 76.2% to 23.8% over 200,000 seat-swapped rounds.
-2. **GTO Strategy** — new. Browse a solved MCCFR strategy across all 252 hands and
-   65 possible current bids. See `GTO_TAB_SPEC.md` for the full spec.
+1. **Play** — the game, with an Easy / Hard bot selector and a Start game button.
+   Hard plays the CFR-solved policy and beats Easy 76.2% to 23.8% over 200,000
+   seat-swapped rounds. Opening bids must be at least 3 wild, 2 zhai, or 2 ones.
+2. **Rules** — the variant stated in words, mirroring exactly what Play enforces.
+3. **Math** — why a wild one doubles your odds, expected counts, and the binomial
+   spread as a chart. Every figure is computed live, never hard-coded.
+4. **GTO Strategy** — the 20-point cheat sheet, built around the gap rule.
+5. **Solver** — the 252-hand range grid, raw solver output.
+
+See `GTO_TAB_SPEC.md` for the full spec of all five.
 
 Verified working in the dev server on desktop (1280×900) and mobile (375×812).
 `npm run build`, `npx tsc --noEmit`, and `npx oxlint app/gto.tsx app/die.tsx` are clean.

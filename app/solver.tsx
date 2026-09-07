@@ -9,11 +9,10 @@ type Language = 'en' | 'zh';
 const QUANTITIES = [0, 2, 3, 4, 5, 6, 7];
 const FACES = [1, 2, 3, 4, 5, 6];
 
-const gtoCopy = {
+const solverCopy = {
   en: {
-    tab: 'GTO Strategy',
     kicker: 'Solved with counterfactual regret minimisation',
-    title: 'Strategy explorer',
+    title: 'Solver output',
     intro: 'Set the bid your opponent just made. The grid recolours to show what the solver does with every one of the 252 hands you could be holding.',
     currentBid: 'Current bid',
     nothing: 'Nothing (You open)',
@@ -46,9 +45,8 @@ const gtoCopy = {
     support: 'Matching dice you hold',
   },
   zh: {
-    tab: 'GTO 策略',
     kicker: '以反事实遗憾最小化求解',
-    title: '策略图谱',
+    title: '求解结果',
     intro: '设定对手刚叫的骰。下方图格会重新着色，显示你手上 252 种牌型各自该怎么打。',
     currentBid: '当前叫骰',
     nothing: '尚未叫骰（你先叫）',
@@ -102,13 +100,13 @@ function parseBid(action: string) {
 const stateFor = (quantity: number, face: number, zhai: boolean) =>
   (quantity === 0 ? 'Q0_F0_WILD' : `Q${quantity}_F${face}_${zhai ? 'ZHAI' : 'WILD'}`);
 
-export function GtoStrategy({ language }: { language: Language }) {
+export function SolverGrid({ language }: { language: Language }) {
   const [policy, setPolicy] = useState<Policy | null>(null);
   const [quantity, setQuantity] = useState(0);
   const [face, setFace] = useState(6);
   const [zhai, setZhai] = useState(false);
   const [selected, setSelected] = useState('11346');
-  const t = gtoCopy[language];
+  const t = solverCopy[language];
 
   useEffect(() => {
     let live = true;
@@ -379,4 +377,3 @@ export function GtoStrategy({ language }: { language: Language }) {
   );
 }
 
-export const gtoTabLabel = { en: gtoCopy.en.tab, zh: gtoCopy.zh.tab };

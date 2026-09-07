@@ -1,13 +1,28 @@
-# GTO Strategy tab — spec
+# Strategy tabs — spec
 
 Written 2026-09-07. This file is the source of truth for the strategy explorer.
 If a decision here is changed in chat, update this file in the same turn.
 
-## What the tab is
+## The five tabs
 
-A second top-level tab (`Play` / `GTO Strategy`) that lets the user browse a solved
-Liar's Dice strategy: for any bid an opponent could have just made, what to do with
-each of the 252 possible five-dice hands.
+Order is fixed and deliberate — it reads as a learning path. `TABS` in `app/page.tsx`
+drives both the nav and the routing.
+
+| Tab | Component | What it is |
+|---|---|---|
+| Play | `app/page.tsx` | The game, Easy or Hard bot |
+| Rules | `app/rules.tsx` | The variant stated in words. Mirrors what Play enforces |
+| Math | `app/math.tsx` | 1/6 vs 1/3, expected counts, the binomial spread |
+| GTO Strategy | `app/strategy.tsx` | The 20-point cheat sheet, built on the gap rule |
+| Solver | `app/solver.tsx` | The 252-hand range grid — raw solver output |
+
+Every tab is bilingual, keyed `en` / `zh` in a local `copy` object, and follows the
+app-wide language toggle. Never show both languages at once.
+
+## What the Solver tab is
+
+For any bid an opponent could have just made, what to do with each of the 252
+possible five-dice hands.
 
 ## Data
 
@@ -79,10 +94,25 @@ State these in the UI; do not call this GTO without qualification.
 - Only the first seat (P0) is exported.
 - `2 × ones` can be opened by the policy but has no facing-state entry.
 
-## Bilingual
 
-Every string lives in `gtoCopy` in `app/gto.tsx`, keyed `en` / `zh`. The tab follows
-the app-wide language toggle; never show both languages at once.
+## Game rule: opening minimums
+
+The first bid of a round must clear one of three floors, set by `MIN_OPENING` in
+`app/page.tsx`:
+
+| Bid type | Minimum quantity |
+|---|---|
+| Wild, faces 2–6 | 3 |
+| Zhai, faces 2–6 | 2 |
+| Ones (always zhai) | 2 |
+
+Later bids only have to beat the bid before them, so the floor never binds again.
+The bid stepper clamps to the floor rather than letting the player build a bid the
+rules will reject, and switching zhai on or off pulls the quantity up if needed.
+
+Every opening the solver can make already clears these floors, so the Hard bot needs
+no special handling. Decided 2026-09-07; also stated in `app/rules.tsx`, which must
+change in the same commit if this does.
 
 ## Bot difficulty (Play tab)
 

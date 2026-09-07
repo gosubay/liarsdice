@@ -18,13 +18,18 @@ import {
 } from 'lucide-react';
 
 import { Die } from './die';
-import { GtoStrategy } from './gto';
+import { MathPage } from './math';
+import { RulesPage } from './rules';
+import { SolverGrid } from './solver';
+import { StrategySheet } from './strategy';
+
 import { loadPolicy, samplePolicyMove, type Policy, type PolicyMove } from './policy';
 
 type Language = 'en' | 'zh';
 type MatchMode = 'five' | 'unlimited';
 type Player = 'human' | 'ai';
 type Difficulty = 'easy' | 'hard';
+type Tab = 'play' | 'rules' | 'math' | 'strategy' | 'solver';
 type Phase = 'playing' | 'revealed' | 'finished';
 type Bid = { quantity: number; face: number; zhai: boolean };
 type Result = { loser: Player; actual: number; bidder: Player; challenger: Player };
@@ -46,6 +51,20 @@ type WebMCPDocument = Document & {
 };
 
 const DIFFICULTIES: Difficulty[] = ['easy', 'hard'];
+const TABS: Tab[] = ['play', 'rules', 'math', 'strategy', 'solver'];
+
+// The opening bid must clear one of these floors. Later bids only have to beat the
+// bid before them, so the floor never binds again. Mirrored in app/rules.tsx.
+const MIN_OPENING = { wild: 3, zhai: 2, ones: 2 };
+
+function openingFloorFor(face: number, zhai: boolean) {
+  if (face === 1) return MIN_OPENING.ones;
+  return zhai ? MIN_OPENING.zhai : MIN_OPENING.wild;
+}
+
+function meetsOpeningMinimum(bid: Bid) {
+  return bid.quantity >= openingFloorFor(bid.face, bid.zhai);
+}
 
 const FACE_ORDER = [2, 3, 4, 5, 6, 1];
 const rollFive = () => Array.from({ length: 5 }, () => Math.floor(Math.random() * 6) + 1);
@@ -67,7 +86,8 @@ const copy = {
     fei: 'Fei · 飞', normal: 'Wild', rulesTitle: 'Table rules', close: 'Close',
     rules: ['Each player always rolls five dice.', 'On a normal bid, ones are wild.', 'Bids rank 1 › 6 › 5 › 4 › 3 › 2.', 'A bid on ones is automatically zhai.', 'In zhai, wild ones do not count.', 'Break zhai with at least double the quantity.', 'Five different faces may be re-rolled once.', 'The round loser gains one loss.'],
     starter: 'Round loser starts', setup: 'Match setup', menu: 'Rules',
-    tabPlay: 'Play', tabGto: 'GTO Strategy',
+    tabPlay: 'Play', tabRules: 'Rules', tabMath: 'Math', tabStrategy: 'GTO Strategy', tabSolver: 'Solver',
+    openingFloor: 'Open with at least 3 wild, 2 zhai, or 2 ones.',
     difficulty: 'Bot difficulty', startGame: 'Start game', opponentWith: (level: string) => `You vs ${level} AI`,
     easy: 'Easy', easyNote: 'Bids almost at random and challenges on a whim',
     hard: 'Hard', hardNote: 'Plays the CFR-solved strategy from the GTO tab',
@@ -88,7 +108,8 @@ const copy = {
     fei: '飞', normal: '万能', rulesTitle: '桌面规则', close: '关闭',
     rules: ['每位玩家始终摇五粒骰。', '普通叫骰时，一点可作万能。', '点数顺序为 1 › 6 › 5 › 4 › 3 › 2。', '叫一点自动视为斋。', '斋叫时，一点不作万能。', '破斋必须至少叫双倍数量。', '五个不同点数可选择重摇一次。', '每局输家增加一负。'],
     starter: '输家下一局先叫', setup: '比赛设置', menu: '规则',
-    tabPlay: '对局', tabGto: 'GTO 策略',
+    tabPlay: '对局', tabRules: '规则', tabMath: '算术', tabStrategy: 'GTO 策略', tabSolver: '求解器',
+    openingFloor: '开叫至少要三个万能、两个斋，或两个一点。',
     difficulty: '电脑难度', startGame: '开始对局', opponentWith: (level: string) => `你 对 ${level}电脑`,
     easy: '简单', easyNote: '几乎随机叫骰，随兴开骰',
     hard: '困难', hardNote: '使用 GTO 页面里的 CFR 求解策略',
@@ -99,7 +120,7 @@ const copy = {
 
 function bidIsLegal(next: Bid, current: Bid | null) {
   if (next.quantity < 1 || next.quantity > 10) return false;
-  if (!current) return true;
+  if (!current) return meetsOpeningMinimum(next);
   if (current.zhai && !next.zhai) return next.quantity >= current.quantity * 2;
   return next.quantity > current.quantity || (next.quantity === current.quantity && faceRank(next.face) > faceRank(current.face));
 }
@@ -111,7 +132,7 @@ export default function Home() {
   const [policy, setPolicy] = useState<Policy | null>(null);
   const [wentOffBook, setWentOffBook] = useState(false);
   const [screen, setScreen] = useState<'setup' | 'game'>('setup');
-  const [tab, setTab] = useState<'play' | 'gto'>('play');
+  const [tab, setTab] = useState<Tab>('play');
   const [showRules, setShowRules] = useState(false);
   const [round, setRound] = useState(1);
   const [losses, setLosses] = useState({ human: 0, ai: 0 });
@@ -121,7 +142,7 @@ export default function Home() {
   const [starter, setStarter] = useState<Player>('human');
   const [phase, setPhase] = useState<Phase>('playing');
   const [currentBid, setCurrentBid] = useState<Bid | null>(null);
-  const [draft, setDraft] = useState<Bid>({ quantity: 1, face: 2, zhai: false });
+  const [draft, setDraft] = useState<Bid>({ quantity: 3, face: 2, zhai: false });
   const [result, setResult] = useState<Result | null>(null);
   const [didReroll, setDidReroll] = useState(false);
   const [notice, setNotice] = useState('');
@@ -143,7 +164,7 @@ export default function Home() {
     setTurn(roundStarter);
     setStarter(roundStarter);
     setCurrentBid(null);
-    setDraft({ quantity: 1, face: 2, zhai: false });
+    setDraft({ quantity: 3, face: 2, zhai: false });
     setResult(null);
     setPhase('playing');
     setDidReroll(false);
@@ -161,6 +182,9 @@ export default function Home() {
   }, [mode, startRound]);
 
   const normalizedDraft = useMemo(() => ({ ...draft, zhai: draft.face === 1 ? true : draft.zhai }), [draft]);
+  // With no bid on the table the opening floor applies, so the stepper stops there
+  // rather than letting the player build a bid the rules will reject.
+  const minQuantity = currentBid ? 1 : openingFloorFor(normalizedDraft.face, normalizedDraft.zhai);
   const legalDraft = bidIsLegal(normalizedDraft, currentBid);
   const isFei = Boolean(currentBid?.zhai && !normalizedDraft.zhai && legalDraft);
 
@@ -249,18 +273,28 @@ export default function Home() {
 
   const submitHumanBid = () => {
     if (!legalDraft) {
-      setNotice(currentBid?.zhai && !normalizedDraft.zhai ? t.feiRequired : t.invalid);
+      setNotice(!currentBid ? t.openingFloor : currentBid.zhai && !normalizedDraft.zhai ? t.feiRequired : t.invalid);
       return;
     }
     placeBid(normalizedDraft, 'human');
   };
 
-  const changeFace = (face: number) => setDraft((value) => ({ ...value, face, zhai: face === 1 ? true : value.zhai }));
+  const changeFace = (face: number) => setDraft((value) => {
+    const zhai = face === 1 ? true : value.zhai;
+    const floor = currentBid ? 1 : openingFloorFor(face, zhai);
+    return { face, zhai, quantity: Math.max(value.quantity, floor) };
+  });
+
+  const toggleZhai = () => setDraft((value) => {
+    const zhai = !value.zhai;
+    const floor = currentBid ? 1 : openingFloorFor(value.face, zhai);
+    return { ...value, zhai, quantity: Math.max(value.quantity, floor) };
+  });
   const nextRound = () => startRound(starter, round + 1);
   const swapLanguage = () => setLanguage(language === 'en' ? 'zh' : 'en');
 
   return (
-    <main className={`min-h-screen bg-background text-foreground ${tab === 'gto' ? '' : 'overflow-hidden'}`}>
+    <main className={`min-h-screen bg-background text-foreground ${tab === 'play' ? 'overflow-hidden' : ''}`}>
       <div className="table-glow" aria-hidden="true" />
       <header className="site-header">
         <button className="brand" onClick={() => { setTab('play'); setScreen('setup'); }} aria-label={language === 'en' ? 'Return to setup' : '返回设置'}>
@@ -268,8 +302,16 @@ export default function Home() {
           <span>LIARSDICE</span>
         </button>
         <nav className="tab-nav" aria-label={t.setup}>
-          <button className={tab === 'play' ? 'selected' : ''} aria-pressed={tab === 'play'} onClick={() => setTab('play')}>{t.tabPlay}</button>
-          <button className={tab === 'gto' ? 'selected' : ''} aria-pressed={tab === 'gto'} onClick={() => setTab('gto')}>{t.tabGto}</button>
+          {TABS.map((name) => (
+            <button
+              key={name}
+              className={tab === name ? 'selected' : ''}
+              aria-pressed={tab === name}
+              onClick={() => setTab(name)}
+            >
+              {{ play: t.tabPlay, rules: t.tabRules, math: t.tabMath, strategy: t.tabStrategy, solver: t.tabSolver }[name]}
+            </button>
+          ))}
         </nav>
         <div className="header-actions">
           {tab === 'play' && screen === 'game' && <button className="icon-button" onClick={() => setShowRules(true)}><CircleHelp size={17} /><span>{t.menu}</span></button>}
@@ -277,8 +319,14 @@ export default function Home() {
         </div>
       </header>
 
-      {tab === 'gto' ? (
-        <GtoStrategy language={language} />
+      {tab === 'solver' ? (
+        <SolverGrid language={language} />
+      ) : tab === 'strategy' ? (
+        <StrategySheet language={language} />
+      ) : tab === 'math' ? (
+        <MathPage language={language} />
+      ) : tab === 'rules' ? (
+        <RulesPage language={language} />
       ) : screen === 'setup' ? (
         <section className="setup-layout">
           <div className="max-w-xl">
@@ -349,13 +397,14 @@ export default function Home() {
               <div className={`bid-controls ${turn === 'ai' ? 'disabled' : ''}`} aria-disabled={turn === 'ai'}>
                 <div className="control-labels"><span>{t.quantity}</span><span>{t.face}</span></div>
                 <div className="bid-builder">
-                  <div className="stepper"><button onClick={() => setDraft((v) => ({ ...v, quantity: Math.max(1, v.quantity - 1) }))} disabled={turn === 'ai'}><ChevronDown /></button><strong>{draft.quantity}</strong><button onClick={() => setDraft((v) => ({ ...v, quantity: Math.min(10, v.quantity + 1) }))} disabled={turn === 'ai'}><ChevronUp /></button></div>
+                  <div className="stepper"><button onClick={() => setDraft((v) => ({ ...v, quantity: Math.max(minQuantity, v.quantity - 1) }))} disabled={turn === 'ai' || draft.quantity <= minQuantity}><ChevronDown /></button><strong>{draft.quantity}</strong><button onClick={() => setDraft((v) => ({ ...v, quantity: Math.min(10, v.quantity + 1) }))} disabled={turn === 'ai'}><ChevronUp /></button></div>
                   <div className="face-picker">{FACE_ORDER.map((face) => <button key={face} className={draft.face === face ? 'selected' : ''} onClick={() => changeFace(face)} disabled={turn === 'ai'}>{face}</button>)}</div>
                 </div>
                 <div className="zhai-row">
-                  <button className={`zhai-toggle ${normalizedDraft.zhai ? 'selected' : ''}`} disabled={draft.face === 1 || turn === 'ai'} onClick={() => setDraft((v) => ({ ...v, zhai: !v.zhai }))}><span className="toggle-track"><i /></span><b>{t.zhai}</b><small>{t.zhaiHelp}</small></button>
+                  <button className={`zhai-toggle ${normalizedDraft.zhai ? 'selected' : ''}`} disabled={draft.face === 1 || turn === 'ai'} onClick={toggleZhai}><span className="toggle-track"><i /></span><b>{t.zhai}</b><small>{t.zhaiHelp}</small></button>
                   {isFei && <span className="fei-badge">{t.fei}</span>}
                 </div>
+                {!currentBid && !notice && <p className="notice floor-hint">{t.openingFloor}</p>}
                 {notice && <p className="notice" role="alert">{notice}</p>}
                 <div className="action-row">
                   <button className="challenge-button" disabled={!currentBid || turn === 'ai'} onClick={() => challenge('human')}><Flag size={17} />{t.challenge}</button>
