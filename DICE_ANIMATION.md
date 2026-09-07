@@ -38,8 +38,16 @@ row of five would have forced them to stack.
 - **The animation never decides anything.** Dice values come from `rollFive()`
   before any of this runs, and each cube is only ever rotated to a face already
   chosen (`FACE_UP`). There is no physics and no chance of the display disagreeing
-  with the result. Verified in the browser: DOM labels `[5,4,3,3,2]` against the
-  same five faces rendered in the same five slots.
+  with the result. The per-die spin is applied with `rotateOnWorldAxis` about world
+  up, **not** `rotateY` — after `FACE_UP` a die's own Y axis is generally not
+  vertical, so `rotateY` tips the chosen face off the top. Verified in the browser
+  at 2.2x zoom: DOM labels `[5,2,4,6,3]` against the same five faces rendered in
+  the same five slots.
+
+- **The overhead camera needs an explicit up vector.** Looking straight down, an up
+  of +Y is degenerate and `lookAt` picks an arbitrary roll. `camera.up` swings from
+  +Y to −Z with the camera, so the quincunx always lands in the same corners as the
+  CSS grid it hands over to.
 - **A skip is always available** while the animation runs — a real button, not a
   click handler on the row. Players see this hundreds of times.
 - **The player can switch it off.** A toggle on the setup card and in the game

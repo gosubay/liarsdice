@@ -57,13 +57,9 @@ export function DiceTray({
     import('./roll-3d')
       .then(({ playRoll }) => {
         if (!live) return;
-        // The scene is framed from the element's real box, so the cup is never
-        // stretched by a buffer that disagrees with the CSS size.
         handle.current = playRoll({
           canvas,
           dice: diceKey.split('').map(Number),
-          width: canvas.clientWidth || 260,
-          height: canvas.clientHeight || 220,
           onSettled: () => setSettled(true),
         });
         // Debug seam: lets the beats be stepped through by hand from the console.

@@ -24,6 +24,8 @@ const FACE_UP: Record<number, [number, number, number]> = {
   4: [Math.PI / 2, 0, 0],
 };
 
+const WORLD_UP = new THREE.Vector3(0, 1, 0);
+
 /** Quincunx: four corners and one in the middle. */
 const SPOTS: [number, number][] = [[-1.15, -1.15], [1.15, -1.15], [0, 0], [-1.15, 1.15], [1.15, 1.15]];
 
@@ -78,19 +80,31 @@ export type RollHandle = {
 export function playRoll(opts: {
   canvas: HTMLCanvasElement;
   dice: number[];
-  width: number;
-  height: number;
   onSettled: () => void;
 }): RollHandle {
-  const { canvas, dice, width, height, onSettled } = opts;
+  const { canvas, dice, onSettled } = opts;
 
   const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.setSize(width, height, false);
 
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(38, width / height, 0.1, 100);
-  renderer.setSize(width, height, false);
+  const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
+
+  // The canvas is sized by CSS, and its box is not necessarily final when this
+  // runs — fonts and layout can still be settling. Re-read it every frame and
+  // only touch the renderer when it actually changed, so the scene is never
+  // rendered at an aspect the element does not have.
+  let lastW = 0;
+  let lastH = 0;
+  function fit() {
+    const w = canvas.clientWidth || 260;
+    const h = canvas.clientHeight || 220;
+    if (w === lastW && h === lastH) return;
+    lastW = w; lastH = h;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
 
   scene.add(new THREE.AmbientLight(0xffffff, 1.5));
   const key = new THREE.DirectionalLight(0xfff2e0, 2.2);
@@ -125,8 +139,10 @@ export function playRoll(opts: {
     mesh.position.set(x, 0.46, z);
     const [rx, ry, rz] = FACE_UP[value] ?? [0, 0, 0];
     mesh.rotation.set(rx, ry, rz);
-    // A free spin about the up axis: cosmetic only, it never changes which face is up.
-    mesh.rotateY((i * 0.7) % (Math.PI * 2));
+    // A free spin about the WORLD up axis: cosmetic only, it never changes which
+    // face is up. rotateY would spin about the die's own axis, which after FACE_UP
+    // is not vertical, and would tip the chosen face off the top.
+    mesh.rotateOnWorldAxis(WORLD_UP, i * 0.7);
     mesh.visible = false;
     scene.add(mesh);
     dieMeshes.push(mesh);
@@ -172,6 +188,12 @@ export function playRoll(opts: {
   const LOOK_TOP = new THREE.Vector3(0, 0, 0);
   const camPos = new THREE.Vector3();
   const camLook = new THREE.Vector3();
+  // Looking straight down, an up vector of +Y is degenerate and lookAt picks an
+  // arbitrary roll. Swing the up vector to -Z as well, so the overhead view always
+  // lands with world -Z at the top of the screen and the quincunx in the same
+  // corners as the CSS grid it hands over to.
+  const UP_SIDE = new THREE.Vector3(0, 1, 0);
+  const UP_TOP = new THREE.Vector3(0, 0, -1);
 
   let raf = 0;
   let start = 0;
@@ -180,12 +202,14 @@ export function playRoll(opts: {
   const finishOnce = () => { if (!done) { done = true; onSettled(); } };
 
   function draw(t: number) {
+    fit();
     // camera: swing from the side to overhead, through an arc rather than a straight line
     const swing = easeInOut(span(t, BEATS.swingFrom, BEATS.swingTo));
     camPos.copy(SIDE).lerp(TOP, swing);
     const arc = Math.sin(swing * Math.PI) * 1.4;
     camPos.y += arc;
     camera.position.copy(camPos);
+    camera.up.copy(UP_SIDE).lerp(UP_TOP, swing).normalize();
     camera.lookAt(camLook.copy(LOOK_SIDE).lerp(LOOK_TOP, swing));
 
     // cup: rattle on the table, then lift straight up and fade
