@@ -73,7 +73,7 @@ button:disabled { cursor: not-allowed; }
   .setup-layout { grid-template-columns: 1fr; gap: 42px; padding-top: 35px; }.display-title { font-size: clamp(4rem,16vw,7rem); }.game-shell { padding-inline: 18px; }.bid-stage { grid-template-columns: 1fr; }.current-bid-panel { min-height: auto; border-right: 0; border-bottom: 1px solid var(--border); padding: 0 0 22px; }.bid-readout { margin-top: 12px; }.players-row { gap: 10px; }
 }
 @media (max-width: 640px) {
-  .site-header { height: 68px; padding-inline: 16px; }.brand>span:last-child,.icon-button span { display: none; }.setup-layout { min-height: calc(100vh - 68px); padding: 24px 17px 44px; }.display-title { font-size: clamp(3.7rem,20vw,5.8rem); }.setup-card { border-radius: 22px; }.game-shell { padding: 2px 12px 30px; }.game-topbar { grid-template-columns: 1fr auto; }.turn-indicator { grid-row: 2; grid-column: 1/-1; justify-self: center; margin-top: 10px; }.player-card { padding: 11px; }.player-meta { grid-template-columns: 28px 1fr; gap: 8px; row-gap: 6px; }.player-meta .avatar { width: 28px; height: 28px; }.player-meta .avatar svg { width: 15px; height: 15px; }.player-meta b { font-size: 13px; }.score-record { grid-column: 1/-1; text-align: left; }.score-record em { justify-content: flex-start; font-size: 17px; }.dice-quincunx { width: 100%; }.die { width: clamp(34px, 10.5vw, 46px); flex-basis: auto; border-radius: 11px; }.tray-stage { margin-top: 14px; }.cup-flat { width: 72px; height: 82px; }.bid-stage { gap: 20px; padding: 18px; }.bid-builder,.control-labels { grid-template-columns: 78px 1fr; gap: 9px; }.face-picker { gap: 4px; }.face-picker button { min-height: 44px; font-size: 14px; }.zhai-toggle { grid-template-columns: 35px auto; }.zhai-toggle small { display: none; }.quiet-button { padding-inline: 11px; }.quiet-button svg+* { display: none; }
+  .site-header { height: 68px; padding-inline: 16px; }.brand>span:last-child,.icon-button span { display: none; }.setup-layout { min-height: calc(100vh - 68px); padding: 24px 17px 44px; }.display-title { font-size: clamp(3.7rem,20vw,5.8rem); }.setup-card { border-radius: 22px; }.game-shell { padding: 2px 12px 30px; }.game-topbar { grid-template-columns: 1fr auto; }.turn-indicator { grid-row: 2; grid-column: 1/-1; justify-self: center; margin-top: 10px; }.player-card { padding: 11px; }.player-meta { grid-template-columns: 28px 1fr; gap: 8px; row-gap: 6px; }.player-meta .avatar { width: 28px; height: 28px; }.player-meta .avatar svg { width: 15px; height: 15px; }.player-meta b { font-size: 13px; }.score-record { grid-column: 1/-1; text-align: left; }.score-record em { justify-content: flex-start; font-size: 17px; }.dice-quincunx { width: 100%; }.die { width: clamp(34px, 10.5vw, 46px); flex-basis: auto; border-radius: 11px; }.tray-stage { margin-top: 14px; }.dice-quincunx.concealed { margin-top: 14px; }.bid-stage { gap: 20px; padding: 18px; }.bid-builder,.control-labels { grid-template-columns: 78px 1fr; gap: 9px; }.face-picker { gap: 4px; }.face-picker button { min-height: 44px; font-size: 14px; }.zhai-toggle { grid-template-columns: 35px auto; }.zhai-toggle small { display: none; }.quiet-button { padding-inline: 11px; }.quiet-button svg+* { display: none; }
 }
 
 /* ---------- Tab navigation ---------- */
@@ -342,11 +342,27 @@ button:disabled { cursor: not-allowed; }
 .tray-canvas { position: absolute; inset: 0; z-index: 3; width: 100%; height: 100%; pointer-events: none; }
 
 /* The AI's cup: stays down, seen side-on, until someone calls. */
-.dice-quincunx.concealed { display: grid; place-items: center; }
-.cup-flat { position: relative; display: grid; width: 96px; height: 104px; place-items: center; color: #6d6558; }
-.cup-body { position: absolute; inset: 0; clip-path: polygon(13px 0, calc(100% - 13px) 0, 100% 100%, 0 100%); border-radius: 11px 11px 4px 4px; background: linear-gradient(96deg, #241f1a 0%, #4e4339 18%, #6a5b4b 34%, #3b332c 62%, #241f1a 100%); box-shadow: 0 16px 30px rgba(0,0,0,.55), inset 0 18px 28px rgba(0,0,0,.4); }
-.cup-lip { position: absolute; right: -4px; bottom: -3px; left: -4px; height: 12px; border-radius: 7px; background: linear-gradient(#8a7761, #56493d 55%, #332c25); box-shadow: 0 3px 7px rgba(0,0,0,.45), inset 0 1px rgba(255,255,255,.28); }
-.cup-flat svg { position: relative; z-index: 1; margin-bottom: 6px; opacity: .55; }
+/*
+ * The AI's cup is a flat drawing, but it sits beside the player's 3D one and has to
+ * read as the same object. Every number below is the real cup from roll-3d.ts
+ * projected through the side camera (SIDE (0.5, 2.6, 10.6), LOOK_SIDE, 38° fov),
+ * so the two match in size, height and taper:
+ *
+ *   box          the same min(100%, 260px) / aspect 1.18 as .tray-stage
+ *   base width   0.547 x the box height  ->  46.4% of the box width
+ *   total height 0.419 x the box height  ->  element aspect 1.306
+ *   top width    0.781 x the base width  ->  a 10.95% clip inset each side
+ *   base ellipse 0.248 x the base width  ->  32.4% of the element height
+ *
+ * Recompute these if the camera or the cup geometry moves. The concealed grid also
+ * has to be a single cell: the quincunx's 3x3 template would drop the lone cup into
+ * the top-left square, which is what used to sit it high in the card.
+ */
+.dice-quincunx.concealed { display: grid; width: min(100%, 260px); margin: 20px auto 0; grid-template-columns: 1fr; grid-template-rows: 1fr; place-items: center; }
+.cup-flat { position: relative; top: 1.6%; display: grid; width: 46.4%; aspect-ratio: 1.306; place-items: center; color: #6d6558; }
+.cup-body { position: absolute; z-index: 1; top: 0; right: 0; left: 0; height: 83.8%; clip-path: polygon(10.95% 0, 89.05% 0, 100% 100%, 0 100%); border-radius: 9px 9px 2px 2px; background: linear-gradient(96deg, #2b2822 0%, #5c4f43 16%, #85735f 34%, #4c4239 64%, #2b2620 100%); box-shadow: 0 16px 30px rgba(0,0,0,.55), inset 0 18px 28px rgba(0,0,0,.4); }
+.cup-lip { position: absolute; right: 0; bottom: 0; left: 0; height: 32.4%; border-radius: 50%; background: linear-gradient(#8a7761, #6a5b4b 46%, #43392f 62%, #2a241e); box-shadow: 0 6px 14px rgba(0,0,0,.5); }
+.cup-flat svg { position: relative; z-index: 2; margin-bottom: 14%; opacity: .5; }
 .cup-flat.rattling { animation-name: cup-rattle; animation-timing-function: linear; animation-fill-mode: both; }
 
 @keyframes cup-rattle {

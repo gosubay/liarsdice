@@ -56,9 +56,31 @@ stay hidden. Both cups must read that way and neither ever flips:
   still mouth-down**; there is no rotation in the lift beat, only `position.y` and a
   fade. Dice are revealed by the cup clearing them, not by tipping it over.
 - The AI's flat CSS cup mirrors that: `.cup-body`'s `clip-path` is narrow at the top
-  and full width at the bottom, and `.cup-lip` sits at the **bottom** (`bottom: -3px`).
-  It used to be drawn the other way up — a tumbler with the lip on top — which read as
-  an open cup facing the ceiling while the player's faced down. Fixed 2026-09-08.
+  and full width at the bottom, and `.cup-lip` is the base ellipse at the **bottom**,
+  painted behind the body so only its near half shows. It used to be drawn the other
+  way up — a tumbler with the lip on top — which read as an open cup facing the
+  ceiling while the player's faced down. Fixed 2026-09-08.
+
+### The two cups are the same size on screen
+
+They sit side by side, so a flat drawing that is merely cup-shaped is not enough — it
+has to be the *same* cup. The flat one is sized from the 3D one projected through the
+side camera, and the numbers are written out in `globals.css` above
+`.dice-quincunx.concealed`:
+
+| | |
+|---|---|
+| box | the same `min(100%, 260px)` / aspect 1.18 as `.tray-stage` |
+| base width | 0.547 × the box height → 46.4% of the box width |
+| total height | 0.419 × the box height → element aspect 1.306 |
+| top width | 0.781 × the base width → a 10.95% clip inset each side |
+| base ellipse | 0.248 × the base width → 32.4% of the element height |
+| centre | 51.6% down the box, not 50% — hence `top: 1.6%` |
+
+Recompute all of them if `SIDE`, `LOOK_SIDE`, the 38° field of view or the cup
+geometry changes. The concealed grid is also a **single cell**: inheriting the
+quincunx's 3×3 template dropped the lone cup into the top-left square, which is what
+used to sit the AI's cup high in its card while the player's sat centred.
 
 ## Sound
 
