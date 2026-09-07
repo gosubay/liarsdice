@@ -34,9 +34,9 @@ There is **no separate `index.html` game**. The two-player game built with Codex
 
 ## Current state
 
-Five top-level tabs, in this order — the order is a learning path and is deliberate:
+Six top-level tabs, in this order — the order is a learning path and is deliberate:
 
-1. **Play** — the game, with an Easy / Hard bot selector and a Start game button.
+1. **Play** — the game, with an Easy / Medium / Hard bot selector and a Start game button.
    Hard plays the CFR-solved policy and beats Easy 76.2% to 23.8% over 200,000
    seat-swapped rounds. Opening bids must be at least 3 wild, 2 zhai, or 2 ones.
    Rounds open with a 1.9 s three.js dice-cup animation — the cup rattles seen
@@ -49,11 +49,26 @@ Five top-level tabs, in this order — the order is a learning path and is delib
    separate 132 KB gzipped chunk fetched only when a roll actually plays.
    The topbar also shows the bot's difficulty, and **New match** goes back to the
    setup card so the difficulty can be re-picked. See `DICE_ANIMATION.md`.
+
+   **Medium** is `app/medium-bot.ts`, a pure heuristic with no policy download — it opens
+   `3 × sixes` on every hand, calls on the gap (wild: never below 2, 20% at 2, always from
+   3; zhai: always from 2), grinds the safest legal raise while refusing anything past its
+   own gap 3, bluff-stretches 12% of raises, and never initiates zhai. That zhai blindness
+   is the deliberate hole the player is meant to find. Full rationale, the numbers behind
+   the opening, and the verification results are in **`MEDIUM_BOT_SPEC.md`** — that file is
+   the authority; change it and the code together.
 2. **Rules** — the variant stated in words, mirroring exactly what Play enforces.
 3. **Math** — why a wild one doubles your odds, expected counts, and the binomial
    spread as a chart. Every figure is computed live, never hard-coded.
 4. **GTO Strategy** — the 20-point cheat sheet, built around the gap rule.
 5. **Solver** — the 252-hand range grid, raw solver output.
+6. **Leaderboard** — high scores, with an Easy / Medium / Hard sub-tab each. A run is
+   recorded only when the player reaches 100 wins in an **Unlimited** match, at which point
+   a modal asks for a name and saves score, win rate and date. Every entry has 100 wins, so
+   the ranking is really fewest losses. Stored in `localStorage` under
+   `liarsdice.leaderboard` via `app/leaderboard.ts` — local to one browser, never uploaded.
+   The board ships seeded with one record (Galvin, 100–100, 8/9/2026) so it is never empty;
+   `liarsdice.leaderboard.seeded` stops it coming back if the player clears it.
 
 See `GTO_TAB_SPEC.md` for the full spec of all five.
 

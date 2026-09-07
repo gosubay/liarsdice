@@ -29,12 +29,15 @@ import { SolverGrid } from './solver';
 import { StrategySheet } from './strategy';
 
 import { loadPolicy, samplePolicyMove, type Policy, type PolicyMove } from './policy';
+import { mediumMove, mediumShouldReroll } from './medium-bot';
+import { LeaderboardPage } from './leaderboard-page';
+import { WINS_TARGET, useLeaderboard } from './leaderboard';
 
 type Language = 'en' | 'zh';
 type MatchMode = 'five' | 'unlimited';
 type Player = 'human' | 'ai';
-type Difficulty = 'easy' | 'hard';
-type Tab = 'play' | 'rules' | 'math' | 'strategy' | 'solver';
+type Difficulty = 'easy' | 'medium' | 'hard';
+type Tab = 'play' | 'rules' | 'math' | 'strategy' | 'solver' | 'leaderboard';
 type Phase = 'playing' | 'revealed' | 'finished';
 type Bid = { quantity: number; face: number; zhai: boolean };
 type Result = { loser: Player; actual: number; bidder: Player; challenger: Player };
@@ -55,8 +58,8 @@ type WebMCPDocument = Document & {
   };
 };
 
-const DIFFICULTIES: Difficulty[] = ['easy', 'hard'];
-const TABS: Tab[] = ['play', 'rules', 'math', 'strategy', 'solver'];
+const DIFFICULTIES: Difficulty[] = ['easy', 'medium', 'hard'];
+const TABS: Tab[] = ['play', 'rules', 'math', 'strategy', 'solver', 'leaderboard'];
 
 // The opening bid must clear one of these floors. Later bids only have to beat the
 // bid before them, so the floor never binds again. Mirrored in app/rules.tsx.
@@ -91,14 +94,19 @@ const copy = {
     fei: 'Fei · 飞', normal: 'Wild', rulesTitle: 'Table rules', close: 'Close',
     rules: ['Each player always rolls five dice.', 'On a normal bid, ones are wild.', 'Bids rank 1 › 6 › 5 › 4 › 3 › 2.', 'A bid on ones is automatically zhai.', 'In zhai, wild ones do not count.', 'Break zhai with at least double the quantity.', 'Five different faces may be re-rolled once.', 'The round loser gains one loss.'],
     starter: 'Round loser starts', setup: 'Match setup', menu: 'Rules',
-    tabPlay: 'Play', tabRules: 'Rules', tabMath: 'Math', tabStrategy: 'GTO Strategy', tabSolver: 'Solver',
+    tabPlay: 'Play', tabRules: 'Rules', tabMath: 'Math', tabStrategy: 'GTO Strategy', tabSolver: 'Solver', tabLeaderboard: 'Leaderboard',
     openingFloor: 'Open with at least 3 wild, 2 zhai, or 2 ones.', skipRoll: 'Skip', dieLabel: 'Die showing',
     difficulty: 'Bot difficulty', startGame: 'Start game', opponentWith: (level: string) => `You vs ${level} AI`,
     animationOn: 'Dice animation on', animationOff: 'Dice animation off',
     soundOn: 'Sound on', soundOff: 'Sound off',
     botLabel: 'Bot',
     easy: 'Easy', easyNote: 'Bids almost at random and challenges on a whim',
+    medium: 'Medium', mediumNote: 'Opens on sixes and holds the gap rule, but never plays zhai',
     hard: 'Hard', hardNote: 'Plays the CFR-solved strategy from the GTO tab',
+    runTitle: `${WINS_TARGET} wins`,
+    runLead: 'You have earned a place on the leaderboard. Put a name to it.',
+    runName: 'Your name', runNamePlaceholder: 'Name for the board',
+    runSave: 'Save to leaderboard', runSkip: 'Not this time', runRate: 'Win rate', runScore: 'Score',
     solverFallback: 'off-book',
     solverFallbackHelp: 'The solve does not cover this bid, so the bot fell back to basic play.',
   },
@@ -116,14 +124,19 @@ const copy = {
     fei: '飞', normal: '万能', rulesTitle: '桌面规则', close: '关闭',
     rules: ['每位玩家始终摇五粒骰。', '普通叫骰时，一点可作万能。', '点数顺序为 1 › 6 › 5 › 4 › 3 › 2。', '叫一点自动视为斋。', '斋叫时，一点不作万能。', '破斋必须至少叫双倍数量。', '五个不同点数可选择重摇一次。', '每局输家增加一负。'],
     starter: '输家下一局先叫', setup: '比赛设置', menu: '规则',
-    tabPlay: '对局', tabRules: '规则', tabMath: '算术', tabStrategy: 'GTO 策略', tabSolver: '求解器',
+    tabPlay: '对局', tabRules: '规则', tabMath: '算术', tabStrategy: 'GTO 策略', tabSolver: '求解器', tabLeaderboard: '排行榜',
     openingFloor: '开叫至少要三个万能、两个斋，或两个一点。', skipRoll: '跳过', dieLabel: '骰子点数',
     difficulty: '电脑难度', startGame: '开始对局', opponentWith: (level: string) => `你 对 ${level}电脑`,
     animationOn: '开骰动画：开', animationOff: '开骰动画：关',
     soundOn: '声音：开', soundOff: '声音：关',
     botLabel: '电脑',
     easy: '简单', easyNote: '几乎随机叫骰，随兴开骰',
+    medium: '中等', mediumNote: '六点开局、守差额法则，但从不叫斋',
     hard: '困难', hardNote: '使用 GTO 页面里的 CFR 求解策略',
+    runTitle: `赢满 ${WINS_TARGET} 局`,
+    runLead: '你已经取得上榜资格，留个名字吧。',
+    runName: '你的名字', runNamePlaceholder: '榜上显示的名字',
+    runSave: '保存到排行榜', runSkip: '这次不了', runRate: '胜率', runScore: '战绩',
     solverFallback: '超出求解',
     solverFallbackHelp: '此叫骰不在求解范围内，电脑改用基础打法。',
   },
@@ -159,7 +172,14 @@ export default function Home() {
   const [result, setResult] = useState<Result | null>(null);
   const [didReroll, setDidReroll] = useState(false);
   const [notice, setNotice] = useState('');
+  // Set the moment the player's win count hits WINS_TARGET in an unlimited match; holds the
+  // finished run until they name it or wave it away.
+  const [pendingRun, setPendingRun] = useState<{ wins: number; losses: number } | null>(null);
+  const [runName, setRunName] = useState('');
+  const { add: addScore } = useLeaderboard();
   const t = copy[language];
+  const levelName = (level: Difficulty) => (level === 'easy' ? t.easy : level === 'medium' ? t.medium : t.hard);
+  const levelNote = (level: Difficulty) => (level === 'easy' ? t.easyNote : level === 'medium' ? t.mediumNote : t.hardNote);
 
   useEffect(() => {
     if (difficulty !== 'hard' || policy) return;
@@ -171,7 +191,11 @@ export default function Home() {
   const startRound = useCallback((roundStarter: Player, roundNumber?: number) => {
     const nextHuman = rollFive();
     let nextAi = rollFive();
-    if (isStraight(nextAi) && Math.random() > 0.35) nextAi = rollFive();
+    // Medium re-rolls only a straight with no wild one in it — see MEDIUM_BOT_SPEC.md section 4.
+    // Easy and Hard keep the original loose behaviour.
+    if (difficulty === 'medium' ? mediumShouldReroll(nextAi) : isStraight(nextAi) && Math.random() > 0.35) {
+      nextAi = rollFive();
+    }
     setHumanDice(nextHuman);
     setAiDice(nextAi);
     setTurn(roundStarter);
@@ -184,11 +208,13 @@ export default function Home() {
     setWentOffBook(false);
     setNotice('');
     if (roundNumber) setRound(roundNumber);
-  }, []);
+  }, [difficulty]);
 
   const startMatch = useCallback((chosenMode: MatchMode = mode) => {
     setMode(chosenMode);
     setLosses({ human: 0, ai: 0 });
+    setPendingRun(null);
+    setRunName('');
     setRound(1);
     setScreen('game');
     startRound('human', 1);
@@ -221,6 +247,10 @@ export default function Home() {
     setResult({ loser, actual, bidder, challenger });
     setPhase(mode === 'five' && nextLosses[loser] >= 5 ? 'finished' : 'revealed');
     setStarter(loser);
+    // The AI's losses are the player's wins. Exact equality, so the prompt fires once per run.
+    if (mode === 'unlimited' && nextLosses.ai === WINS_TARGET) {
+      setPendingRun({ wins: nextLosses.ai, losses: nextLosses.human });
+    }
   }, [aiDice, currentBid, humanDice, losses, mode]);
 
   // Easy: near-random legal play. This is the original V1 bot, kept as the floor.
@@ -247,6 +277,10 @@ export default function Home() {
     const opening = currentBid || !animation ? 0 : ROLL_MS;
     const timer = window.setTimeout(() => {
       let move: PolicyMove | null = null;
+
+      if (difficulty === 'medium') {
+        move = mediumMove(aiDice, currentBid, (bid) => bidIsLegal(bid, currentBid));
+      }
 
       if (difficulty === 'hard' && policy) {
         move = samplePolicyMove(policy, aiDice, currentBid, (candidate) => (
@@ -305,6 +339,15 @@ export default function Home() {
     const floor = currentBid ? 1 : openingFloorFor(value.face, zhai);
     return { ...value, zhai, quantity: Math.max(value.quantity, floor) };
   });
+  const saveRun = () => {
+    const name = runName.trim();
+    if (!pendingRun || !name) return;
+    addScore({ name, wins: pendingRun.wins, losses: pendingRun.losses, difficulty });
+    setPendingRun(null);
+    setRunName('');
+    setTab('leaderboard');
+  };
+
   const nextRound = () => startRound(starter, round + 1);
   const swapLanguage = () => setLanguage(language === 'en' ? 'zh' : 'en');
 
@@ -324,7 +367,7 @@ export default function Home() {
               aria-pressed={tab === name}
               onClick={() => setTab(name)}
             >
-              {{ play: t.tabPlay, rules: t.tabRules, math: t.tabMath, strategy: t.tabStrategy, solver: t.tabSolver }[name]}
+              {{ play: t.tabPlay, rules: t.tabRules, math: t.tabMath, strategy: t.tabStrategy, solver: t.tabSolver, leaderboard: t.tabLeaderboard }[name]}
             </button>
           ))}
         </nav>
@@ -334,7 +377,9 @@ export default function Home() {
         </div>
       </header>
 
-      {tab === 'solver' ? (
+      {tab === 'leaderboard' ? (
+        <LeaderboardPage language={language} />
+      ) : tab === 'solver' ? (
         <SolverGrid language={language} />
       ) : tab === 'strategy' ? (
         <StrategySheet language={language} />
@@ -348,7 +393,7 @@ export default function Home() {
             <p className="eyebrow">{t.kicker}</p>
             <h1 className="display-title">{t.title}</h1>
             <p className="intro-copy">{t.intro}</p>
-            <div className="opponent-line"><Bot size={18} /> <span>{t.opponentWith(difficulty === 'easy' ? t.easy : t.hard)}</span></div>
+            <div className="opponent-line"><Bot size={18} /> <span>{t.opponentWith(levelName(difficulty))}</span></div>
           </div>
           <div className="setup-card">
             <div className="card-heading"><p>{t.mode}</p><span className="round-pill">V1</span></div>
@@ -369,8 +414,8 @@ export default function Home() {
                   aria-pressed={difficulty === level}
                   onClick={() => setDifficulty(level)}
                 >
-                  <span className="difficulty-rank">{level === 'easy' ? '1' : '2'}</span>
-                  <span className="text-left"><b>{level === 'easy' ? t.easy : t.hard}</b><small>{level === 'easy' ? t.easyNote : t.hardNote}</small></span>
+                  <span className="difficulty-rank">{DIFFICULTIES.indexOf(level) + 1}</span>
+                  <span className="text-left"><b>{levelName(level)}</b><small>{levelNote(level)}</small></span>
                   <span className="radio-dot" />
                 </button>
               ))}
@@ -390,7 +435,7 @@ export default function Home() {
       ) : (
         <section className="game-shell">
           <div className="game-topbar">
-            <div><span>{t.round}</span><b>{round}</b><em className={`difficulty-tag ${difficulty}`}><Swords size={11} />{difficulty === 'easy' ? t.easy : t.hard}</em></div>
+            <div><span>{t.round}</span><b>{round}</b><em className={`difficulty-tag ${difficulty}`}><Swords size={11} />{levelName(difficulty)}</em></div>
             <span className={`turn-indicator ${turn === 'ai' ? 'thinking' : ''}`}><i />{phase === 'playing' ? (turn === 'human' ? t.turn : t.aiTurn) : t.challenged}</span>
             <div className="topbar-actions">
               <button type="button" className={`motion-toggle ${animation ? 'on' : ''}`} aria-pressed={animation} onClick={() => setAnimation(!animation)} title={animation ? t.animationOn : t.animationOff}>
@@ -413,7 +458,7 @@ export default function Home() {
             </article>
 
             <article className={`player-card ${turn === 'ai' && phase === 'playing' ? 'active' : ''}`}>
-              <div className="player-meta"><span className="avatar ai"><Bot size={19} /></span><div><b>{t.ai}<em className={`difficulty-tag ${difficulty}`}><Swords size={11} />{difficulty === 'easy' ? t.easy : t.hard}</em>{wentOffBook && <em className="difficulty-tag offbook" title={t.solverFallbackHelp}>{t.solverFallback}</em>}</b><small>{starter === 'ai' ? t.starter : ' '}</small></div><span className="score-record" aria-label={`${t.ai} ${t.record}: ${losses.human}–${losses.ai}`}><small>{t.record}</small><em>{losses.human}<i>–</i>{losses.ai}</em></span></div>
+              <div className="player-meta"><span className="avatar ai"><Bot size={19} /></span><div><b>{t.ai}<em className={`difficulty-tag ${difficulty}`}><Swords size={11} />{levelName(difficulty)}</em>{wentOffBook && <em className="difficulty-tag offbook" title={t.solverFallbackHelp}>{t.solverFallback}</em>}</b><small>{starter === 'ai' ? t.starter : ' '}</small></div><span className="score-record" aria-label={`${t.ai} ${t.record}: ${losses.human}–${losses.ai}`}><small>{t.record}</small><em>{losses.human}<i>–</i>{losses.ai}</em></span></div>
               <DiceTray key={`a-${round}-${phase}`} dice={aiDice} concealed={phase === 'playing'} reveal animate={animation} sound={sound} hiddenLabel={t.concealed} skipLabel={t.skipRoll} dieLabel={t.dieLabel} />
             </article>
           </div>
@@ -452,6 +497,36 @@ export default function Home() {
             ) : null}
           </div>
         </section>
+      )}
+
+      {pendingRun && (
+        <div className="modal-backdrop" role="presentation">
+          <section className="run-modal" role="dialog" aria-modal="true" aria-labelledby="run-title">
+            <span className="run-crown"><Trophy size={26} /></span>
+            <p className="run-kicker">{levelName(difficulty)}</p>
+            <h2 id="run-title">{t.runTitle}</h2>
+            <p className="run-lead">{t.runLead}</p>
+            <dl className="run-stats">
+              <div><dt>{t.runScore}</dt><dd>{pendingRun.wins}<i>–</i>{pendingRun.losses}</dd></div>
+              <div><dt>{t.runRate}</dt><dd>{((pendingRun.wins / (pendingRun.wins + pendingRun.losses)) * 100).toFixed(1)}%</dd></div>
+            </dl>
+            <label className="run-field" htmlFor="run-name">{t.runName}</label>
+            <input
+              id="run-name"
+              className="run-input"
+              value={runName}
+              maxLength={18}
+              autoFocus
+              placeholder={t.runNamePlaceholder}
+              onChange={(event) => setRunName(event.target.value)}
+              onKeyDown={(event) => { if (event.key === 'Enter') saveRun(); }}
+            />
+            <div className="run-actions">
+              <button className="quiet-button" onClick={() => { setPendingRun(null); setRunName(''); }}>{t.runSkip}</button>
+              <button className="primary-button" disabled={!runName.trim()} onClick={saveRun}>{t.runSave}<span>→</span></button>
+            </div>
+          </section>
+        </div>
       )}
 
       {showRules && (
