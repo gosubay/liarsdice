@@ -19,6 +19,7 @@ import {
 
 import { Die } from './die';
 import { DiceTray, ROLL_MS } from './dice-tray';
+import { useAnimationPref } from './animation-pref';
 import { MathPage } from './math';
 import { RulesPage } from './rules';
 import { SolverGrid } from './solver';
@@ -90,6 +91,7 @@ const copy = {
     tabPlay: 'Play', tabRules: 'Rules', tabMath: 'Math', tabStrategy: 'GTO Strategy', tabSolver: 'Solver',
     openingFloor: 'Open with at least 3 wild, 2 zhai, or 2 ones.', skipRoll: 'Skip', dieLabel: 'Die showing',
     difficulty: 'Bot difficulty', startGame: 'Start game', opponentWith: (level: string) => `You vs ${level} AI`,
+    animationOn: 'Dice animation on', animationOff: 'Dice animation off',
     easy: 'Easy', easyNote: 'Bids almost at random and challenges on a whim',
     hard: 'Hard', hardNote: 'Plays the CFR-solved strategy from the GTO tab',
     solverFallback: 'off-book',
@@ -112,6 +114,7 @@ const copy = {
     tabPlay: '对局', tabRules: '规则', tabMath: '算术', tabStrategy: 'GTO 策略', tabSolver: '求解器',
     openingFloor: '开叫至少要三个万能、两个斋，或两个一点。', skipRoll: '跳过', dieLabel: '骰子点数',
     difficulty: '电脑难度', startGame: '开始对局', opponentWith: (level: string) => `你 对 ${level}电脑`,
+    animationOn: '开骰动画：开', animationOff: '开骰动画：关',
     easy: '简单', easyNote: '几乎随机叫骰，随兴开骰',
     hard: '困难', hardNote: '使用 GTO 页面里的 CFR 求解策略',
     solverFallback: '超出求解',
@@ -130,6 +133,7 @@ export default function Home() {
   const [language, setLanguage] = useState<Language>('en');
   const [mode, setMode] = useState<MatchMode>('five');
   const [difficulty, setDifficulty] = useState<Difficulty>('easy');
+  const [animation, setAnimation] = useAnimationPref();
   const [policy, setPolicy] = useState<Policy | null>(null);
   const [wentOffBook, setWentOffBook] = useState(false);
   const [screen, setScreen] = useState<'setup' | 'game'>('setup');
@@ -232,7 +236,7 @@ export default function Home() {
   useEffect(() => {
     if (screen !== 'game' || phase !== 'playing' || turn !== 'ai') return;
     // On the opening bid the cups are still being shaken, so wait them out.
-    const opening = currentBid ? 0 : ROLL_MS;
+    const opening = currentBid || !animation ? 0 : ROLL_MS;
     const timer = window.setTimeout(() => {
       let move: PolicyMove | null = null;
 
@@ -250,7 +254,7 @@ export default function Home() {
       else if (currentBid) challenge('ai');
     }, 720 + opening);
     return () => window.clearTimeout(timer);
-  }, [aiDice, challenge, currentBid, difficulty, easyMove, phase, placeBid, policy, screen, turn]);
+  }, [aiDice, animation, challenge, currentBid, difficulty, easyMove, phase, placeBid, policy, screen, turn]);
 
   useEffect(() => {
     const context = (document as WebMCPDocument).modelContext;
@@ -363,7 +367,10 @@ export default function Home() {
                 </button>
               ))}
             </div>
-            <button className="primary-button mt-5" onClick={() => startMatch()}>{t.startGame}<span>→</span></button>
+            <button type="button" className={`motion-toggle mt-5 ${animation ? 'on' : ''}`} aria-pressed={animation} onClick={() => setAnimation(!animation)}>
+              <Sparkles size={13} />{animation ? t.animationOn : t.animationOff}
+            </button>
+            <button className="primary-button mt-4" onClick={() => startMatch()}>{t.startGame}<span>→</span></button>
             <p className="fine-print">{t.rulesLine}</p>
           </div>
         </section>
@@ -372,13 +379,18 @@ export default function Home() {
           <div className="game-topbar">
             <div><span>{t.round}</span><b>{round}</b></div>
             <span className={`turn-indicator ${turn === 'ai' ? 'thinking' : ''}`}><i />{phase === 'playing' ? (turn === 'human' ? t.turn : t.aiTurn) : t.challenged}</span>
-            <button className="quiet-button" onClick={() => startMatch(mode)}><RotateCcw size={15} />{t.reset}</button>
+            <div className="topbar-actions">
+              <button type="button" className={`motion-toggle ${animation ? 'on' : ''}`} aria-pressed={animation} onClick={() => setAnimation(!animation)} title={animation ? t.animationOn : t.animationOff}>
+                <Sparkles size={13} /><span>{animation ? t.animationOn : t.animationOff}</span>
+              </button>
+              <button className="quiet-button" onClick={() => startMatch(mode)}><RotateCcw size={15} />{t.reset}</button>
+            </div>
           </div>
 
           <div className="players-row">
             <article className={`player-card ${turn === 'human' && phase === 'playing' ? 'active' : ''}`}>
               <div className="player-meta"><span className="avatar human"><UserRound size={19} /></span><div><b>{t.you}</b><small>{starter === 'human' ? t.starter : ' '}</small></div><span className="score-record" aria-label={`${t.you} ${t.record}: ${losses.ai}–${losses.human}`}><small>{t.record}</small><em>{losses.ai}<i>–</i>{losses.human}</em></span></div>
-              <DiceTray key={`h-${round}-${humanDice.join('')}`} dice={humanDice} concealed={false} hiddenLabel={t.concealed} skipLabel={t.skipRoll} dieLabel={t.dieLabel} />
+              <DiceTray key={`h-${round}-${humanDice.join('')}`} dice={humanDice} concealed={false} animate={animation} hiddenLabel={t.concealed} skipLabel={t.skipRoll} dieLabel={t.dieLabel} />
               {phase === 'playing' && isStraight(humanDice) && !didReroll && (
                 <button className="reroll-button" onClick={() => { setHumanDice(rollFive()); setDidReroll(true); setNotice(t.rerolled); }}><Sparkles size={15} />{t.reroll}</button>
               )}
@@ -386,7 +398,7 @@ export default function Home() {
 
             <article className={`player-card ${turn === 'ai' && phase === 'playing' ? 'active' : ''}`}>
               <div className="player-meta"><span className="avatar ai"><Bot size={19} /></span><div><b>{t.ai}<em className={`difficulty-tag ${difficulty}`}><Swords size={11} />{difficulty === 'easy' ? t.easy : t.hard}</em>{wentOffBook && <em className="difficulty-tag offbook" title={t.solverFallbackHelp}>{t.solverFallback}</em>}</b><small>{starter === 'ai' ? t.starter : ' '}</small></div><span className="score-record" aria-label={`${t.ai} ${t.record}: ${losses.human}–${losses.ai}`}><small>{t.record}</small><em>{losses.human}<i>–</i>{losses.ai}</em></span></div>
-              <DiceTray key={`a-${round}-${phase}`} dice={aiDice} concealed={phase === 'playing'} hiddenLabel={t.concealed} skipLabel={t.skipRoll} dieLabel={t.dieLabel} />
+              <DiceTray key={`a-${round}-${phase}`} dice={aiDice} concealed={phase === 'playing'} animate={animation} hiddenLabel={t.concealed} skipLabel={t.skipRoll} dieLabel={t.dieLabel} />
             </article>
           </div>
 

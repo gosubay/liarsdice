@@ -1,86 +1,31 @@
 'use client';
 
-// The dice cup: rattle, lift, tumble. Used for both players — yours opens as soon as
-// the round starts, the AI's stays down until someone calls.
+// The dice cup. With animation on and WebGL available you get the 3D roll from
+// roll-3d.ts: the cup rattles seen side-on, lifts away, and the camera swings
+// overhead to leave five dice in a quincunx. The canvas then cross-fades into the
+// flat CSS dice, which are what the rest of the round reads from — so three.js is
+// only alive for the two seconds of the roll.
 //
-// Timings are fixed by TIMING below and must add up to ROLL_MS. Spec: DICE_ANIMATION.md.
+// Timings live in app/roll-timing.ts. Spec: DICE_ANIMATION.md.
 // The dice values are decided before any of this runs, so the animation only ever
-// rotates each cube to a face that is already known. It cannot change the result.
+// shows a face that is already known. It cannot change the result.
 
 import { useEffect, useRef, useState } from 'react';
 import { ShieldQuestion } from 'lucide-react';
+import { Die } from './die';
+import { hasWebGL } from './animation-pref';
+import { BEATS, ROLL_3D_MS } from './roll-timing';
 
-export const TIMING = {
-  /** Cup rattling on the table, dice hidden inside. */
-  shake: 650,
-  /** Cup lifting away. Starts as the rattle ends. */
-  lift: 220,
-  /** One die rotating to its face. */
-  tumble: 300,
-  /** Gap between each die starting its tumble. */
-  stagger: 60,
-};
-/** Total wall time from round start to settled dice: 650 + 220 + 4*60 + 300 = 1410ms. */
-export const ROLL_MS = TIMING.shake + TIMING.lift + TIMING.stagger * 4 + TIMING.tumble;
+export { ROLL_3D_MS as ROLL_MS };
 
-type Phase = 'shaking' | 'opening' | 'settled';
+/** How long the canvas takes to hand over to the flat dice. */
+const CROSSFADE_MS = 160;
 
-// Faces are placed so opposite sides sum to seven: 1 front, 6 back, 3 right, 4 left,
-// 2 top, 5 bottom. To show a face, rotate the cube by the inverse of where it sits.
-const FACE_PLACEMENT: Record<number, string> = {
-  1: 'rotateY(0deg)',
-  6: 'rotateY(180deg)',
-  3: 'rotateY(90deg)',
-  4: 'rotateY(-90deg)',
-  2: 'rotateX(90deg)',
-  5: 'rotateX(-90deg)',
-};
-const SHOW_FACE: Record<number, [number, number]> = {
-  1: [0, 0], 6: [0, 180], 3: [0, -90], 4: [0, 90], 2: [-90, 0], 5: [90, 0],
-};
-
-function Pips({ value }: { value: number }) {
-  return (
-    <span className={`pip-face face-${value}`}>
-      {Array.from({ length: value }, (_, i) => <i key={i} />)}
-    </span>
-  );
-}
-
-function Cube({ value, index, animate, label }: { value: number; index: number; animate: boolean; label: string }) {
-  const [x, y] = SHOW_FACE[value] ?? [0, 0];
-  // A couple of whole turns on the way, so it reads as a tumble rather than a flip.
-  const spin = animate ? `rotateX(${x - 360}deg) rotateY(${y + 360}deg)` : `rotateX(${x}deg) rotateY(${y}deg)`;
-  return (
-    <span className={`cube-die ${value === 1 ? 'is-one' : ''}`} role="img" aria-label={label} data-value={value}>
-      <span
-        className={`cube ${animate ? 'tumbling' : ''}`}
-        style={{
-          transform: `rotateX(${x}deg) rotateY(${y}deg)`,
-          ...(animate
-            ? {
-              animationDuration: `${TIMING.tumble}ms`,
-              animationDelay: `${TIMING.shake + TIMING.lift + index * TIMING.stagger}ms`,
-              // custom properties consumed by the die-tumble keyframes
-              '--from': spin,
-              '--to': `rotateX(${x}deg) rotateY(${y}deg)`,
-            }
-            : {}),
-        }}
-      >
-        {[1, 2, 3, 4, 5, 6].map((face) => (
-          <span className={`cube-face f${face}`} key={face} style={{ transform: `${FACE_PLACEMENT[face]} translateZ(var(--half))` }}>
-            <Pips value={face} />
-          </span>
-        ))}
-      </span>
-    </span>
-  );
-}
+type Handle = { cancel: () => void; finish: () => void; step: (t: number) => void };
 
 /**
  * Give this a `key` that changes each round — remounting is what restarts the
- * animation, so the effect only ever schedules timers and never sets state on the
+ * animation, so the effect only ever starts the roll and never sets state on the
  * way in.
  */
 export function DiceTray({
@@ -94,30 +39,56 @@ export function DiceTray({
   skipLabel: string;
   dieLabel: string;
 }) {
-  const [phase, setPhase] = useState<Phase>(animate ? 'shaking' : 'settled');
-  const timers = useRef<number[]>([]);
+  const diceKey = dice.join('');
+  // WebGL support is fixed for the session; probing it once keeps `rolling` derivable,
+  // so nothing has to write state on the way in.
+  const [webgl] = useState(hasWebGL);
+  const rolling = animate && !concealed && webgl && dice.length > 0;
+  const [settled, setSettled] = useState(!rolling);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const handle = useRef<Handle | null>(null);
 
   useEffect(() => {
-    if (!animate) return;
-    const handles = [
-      window.setTimeout(() => setPhase('opening'), TIMING.shake),
-      window.setTimeout(() => setPhase('settled'), ROLL_MS),
-    ];
-    timers.current = handles;
-    return () => { handles.forEach(window.clearTimeout); timers.current = []; };
-  }, [animate]);
+    if (!rolling) return;
+    let live = true;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    import('./roll-3d')
+      .then(({ playRoll }) => {
+        if (!live) return;
+        // The scene is framed from the element's real box, so the cup is never
+        // stretched by a buffer that disagrees with the CSS size.
+        handle.current = playRoll({
+          canvas,
+          dice: diceKey.split('').map(Number),
+          width: canvas.clientWidth || 260,
+          height: canvas.clientHeight || 220,
+          onSettled: () => setSettled(true),
+        });
+        // Debug seam: lets the beats be stepped through by hand from the console.
+        (canvas as HTMLCanvasElement & { roll?: Handle }).roll = handle.current;
+      })
+      .catch(() => { if (live) setSettled(true); });
+
+    return () => {
+      live = false;
+      handle.current?.cancel();
+      handle.current = null;
+    };
+  }, [diceKey, rolling]);
 
   const skip = () => {
-    timers.current.forEach(window.clearTimeout);
-    timers.current = [];
-    setPhase('settled');
+    handle.current?.finish();
+    handle.current = null;
+    setSettled(true);
   };
 
   // The cup stays down over the AI's dice regardless of where the animation is.
   if (concealed) {
     return (
-      <div className="dice-row">
-        <div className={`cup closed ${phase === 'shaking' ? 'rattling' : ''}`} aria-label={hiddenLabel}>
+      <div className="dice-quincunx concealed">
+        <div className={`cup-flat ${animate ? 'rattling' : ''}`} aria-label={hiddenLabel}>
           <span className="cup-body" />
           <span className="cup-lip" />
           <ShieldQuestion size={22} />
@@ -127,19 +98,27 @@ export function DiceTray({
   }
 
   return (
-    <div className={`dice-row tray ${phase}`}>
-      {dice.map((die, i) => (
-        <Cube key={i} value={die} index={i} animate={animate && phase !== 'settled'} label={`${dieLabel} ${die}`} />
-      ))}
-      {phase !== 'settled' && (
+    <div className="tray-stage">
+      <div className={`dice-quincunx ${settled ? 'settled' : 'rolling'}`}>
+        {dice.map((die, i) => (
+          <span className={`quin-slot s${i}`} key={i}>
+            <Die value={die} accent={die === 1} label={`${dieLabel} ${die}`} />
+          </span>
+        ))}
+      </div>
+      {!settled && (
         <>
-          <div className="cup lifting" aria-hidden="true">
-            <span className="cup-body" />
-            <span className="cup-lip" />
-          </div>
+          <canvas
+            ref={canvasRef}
+            className="tray-canvas"
+            aria-hidden="true"
+            style={{ transitionDuration: `${CROSSFADE_MS}ms` }}
+          />
           <button type="button" className="tray-skip" onClick={skip}>{skipLabel}</button>
         </>
       )}
     </div>
   );
 }
+
+export { BEATS };

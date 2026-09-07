@@ -1,53 +1,88 @@
 # Dice cup animation — spec
 
-Written 2026-09-07. `app/dice-tray.tsx` and the dice block at the end of
-`app/globals.css` implement this. Change both together.
+Rewritten 2026-09-07 (three.js version; supersedes the CSS-3D one).
+`app/roll-3d.ts`, `app/roll-timing.ts`, `app/dice-tray.tsx` and the dice block at
+the end of `app/globals.css` implement this. Change them together.
 
 ## The sequence
 
-Both players shake at the start of a round. Yours opens straight away; the AI's cup
-stays down on the table until someone calls, then lifts.
+Both players shake at the start of a round. Yours plays out in 3D; the AI's cup is
+a flat side-on cup that stays down on the table until someone calls.
 
-| Beat | Duration | What happens |
+| Beat | Window | What happens |
 |---|---|---|
-| Rattle | 650 ms | Cup on the table, dice hidden inside. Both players. |
-| Lift | 220 ms | Cup rises and fades out. |
-| Tumble | 300 ms each, 60 ms apart | Each die rotates to its face, left to right. |
+| Rattle | 0 – 750 ms | Cup seen side-on, rattling on the table, dice hidden inside. |
+| Lift | 750 – 1100 ms | Cup rises straight up and fades out. |
+| Reveal | 840 – 1260 ms | Dice drop into place, staggered, under the lifting cup. |
+| Camera swing | 1050 – 1650 ms | Camera arcs from the side view round to directly overhead. |
+| Hold | to 1900 ms | Settled quincunx seen top-down, then hands over to the flat dice. |
 
-**Total 1410 ms.** The ceiling is 1.5 s — decided 2026-09-07. If a beat grows,
+**Total 1900 ms.** The ceiling is 2 s — decided 2026-09-07. If a beat grows,
 another has to shrink.
 
-Timings live in `TIMING` in `app/dice-tray.tsx`; `ROLL_MS` is their sum and is what
-the AI turn waits for before making an opening bid.
+Timings live in `BEATS` in `app/roll-timing.ts` — a module with no three.js import,
+so `page.tsx` can read `ROLL_MS` (the total) without pulling the 3D chunk into the
+initial bundle. `ROLL_MS` is what the AI turn waits for before its opening bid, and
+only when the animation is switched on.
+
+## Layout
+
+Five dice in a **quincunx** — four corners and one in the middle. `SPOTS` in
+`app/roll-3d.ts` and the `.quin-slot` grid areas in `globals.css` place the same
+five positions, so the canvas can hand over to the flat dice without them jumping.
+The quincunx is also what lets the two players stay **side by side on a phone**; a
+row of five would have forced them to stack.
 
 ## Rules this must not break
 
 - **The animation never decides anything.** Dice values come from `rollFive()`
   before any of this runs, and each cube is only ever rotated to a face already
-  chosen. There is no physics and no chance of the display disagreeing with the
-  result. Verified across 30 dice covering all six values.
+  chosen (`FACE_UP`). There is no physics and no chance of the display disagreeing
+  with the result. Verified in the browser: DOM labels `[5,4,3,3,2]` against the
+  same five faces rendered in the same five slots.
 - **A skip is always available** while the animation runs — a real button, not a
   click handler on the row. Players see this hundreds of times.
-- **`prefers-reduced-motion` removes it entirely**: no cup, no tumble, dice visible
-  immediately. A shaking cup is a classic motion-sickness trigger.
+- **The player can switch it off.** A toggle on the setup card and in the game
+  topbar, persisted in `localStorage` under `liarsdice.animation`. Off means no
+  canvas is mounted at all and three.js is never fetched.
+- **`prefers-reduced-motion` is the default-off case.** A shaking cup is a classic
+  motion-sickness trigger, so those users start with it off; they can still turn it
+  on, and the stored choice wins over the media query.
+- **No WebGL, no canvas.** `hasWebGL()` is probed once and the flat dice are used.
+- **A starved tab must never freeze on a cup.** Two safety nets in `playRoll`: if
+  no frame has drawn 400 ms in, hand straight over to the flat dice; and a guard
+  timer ends the roll at `holdTo + 300` whatever happens. Both matter — a
+  backgrounded or throttled tab gets no `requestAnimationFrame` callbacks at all.
 - The component restarts by being **remounted with a new `key`**, not by an effect
   writing state on the way in.
 
-## Why CSS 3D and not a 3D library
+## Why three.js after all
 
-A die is a cube, which is the case CSS 3D transforms exist for: six faces,
-`transform-style: preserve-3d`, one rotation to show the face you want. Measured
-alternatives, gzipped: Three.js ~99 KB, plus a physics engine ~73 KB. That is +74%
-on a 231 KB site for two seconds of animation.
+The earlier CSS-3D version could not do the thing that was actually asked for: a
+side view that swings to top-down. CSS 3D has no camera — you can rotate elements,
+but there is no scene to fly around, and faking an arc with nested transforms on
+five separate cubes plus a cup is worse code than a real scene graph.
 
-The deciding reason is not size. With real physics you either let the simulation
-decide the roll — throwing away the RNG and complicating the AI's hidden dice — or
-you steer it to a predetermined face, which is fiddly and unconvincing. Rotating to
-a known face is correct by construction.
+The cost is one chunk: **132 KB gzipped, loaded only when a roll starts**, so the
+initial page is unchanged at ~86 KB of JS. The canvas is unmounted the moment the
+roll settles, so no WebGL context stays alive between rounds.
 
 ## Face layout
 
-Opposite faces sum to seven: 1 front, 6 back, 3 right, 4 left, 2 top, 5 bottom.
-To show a face, rotate the cube by the inverse of where that face sits
-(`SHOW_FACE` in `app/dice-tray.tsx`). The tumble adds one whole turn on each axis so
-it reads as a roll rather than a flip.
+`BoxGeometry` material order is +X −X +Y −Y +Z −Z; `FACE_ORDER` maps that to
+`1 6 2 5 3 4` so opposite faces sum to seven. `FACE_UP` is the rotation that brings
+each value's face to point up. Each die also gets a fixed spin about the up axis,
+which is cosmetic and cannot change which face shows.
+
+## Debug seam
+
+`playRoll` returns a `step(t)` that renders one frame at an explicit time, and
+`dice-tray.tsx` attaches the handle to the canvas element as `.roll`. To inspect a
+beat by hand:
+
+```js
+document.querySelector('.tray-canvas').roll.step(1150)
+```
+
+This exists because a headless/hidden pane gets no animation frames, so stepping is
+the only way to actually look at the middle of the sequence.

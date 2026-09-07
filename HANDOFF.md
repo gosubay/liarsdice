@@ -39,8 +39,12 @@ Five top-level tabs, in this order — the order is a learning path and is delib
 1. **Play** — the game, with an Easy / Hard bot selector and a Start game button.
    Hard plays the CFR-solved policy and beats Easy 76.2% to 23.8% over 200,000
    seat-swapped rounds. Opening bids must be at least 3 wild, 2 zhai, or 2 ones.
-   Rounds open with a 1.41 s dice-cup animation — both cups rattle, yours opens,
-   the AI's stays down until a call. CSS 3D, no library. See `DICE_ANIMATION.md`.
+   Rounds open with a 1.9 s three.js dice-cup animation — the cup rattles seen
+   side-on, lifts away, and the camera swings overhead to leave five dice in a
+   quincunx; the AI's cup stays down until a call. There is a player-facing
+   on/off toggle (setup card and game topbar) persisted in `localStorage`, and
+   three.js is a separate 132 KB gzipped chunk fetched only when a roll actually
+   plays. See `DICE_ANIMATION.md`.
 2. **Rules** — the variant stated in words, mirroring exactly what Play enforces.
 3. **Math** — why a wild one doubles your odds, expected counts, and the binomial
    spread as a chart. Every figure is computed live, never hard-coded.
@@ -49,7 +53,10 @@ Five top-level tabs, in this order — the order is a learning path and is delib
 
 See `GTO_TAB_SPEC.md` for the full spec of all five.
 
-Verified working in the dev server on desktop (1280×900) and mobile (375×812).
+The quincunx is what lets both players sit **side by side on a phone** — they no
+longer stack at 640px.
+
+Verified working in the static preview on desktop (1280×900) and mobile (375×812).
 `npm run build`, `npx tsc --noEmit`, and `npx oxlint app/gto.tsx app/die.tsx` are clean.
 `app/page.tsx` still has two pre-existing a11y lint errors in the rules modal.
 
