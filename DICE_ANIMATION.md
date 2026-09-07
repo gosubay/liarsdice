@@ -11,7 +11,7 @@ a flat side-on cup that stays down on the table until someone calls.
 
 | Beat | Window | What happens |
 |---|---|---|
-| Rattle | 0 – 750 ms | Cup seen side-on, rattling on the table, dice hidden inside. |
+| Rattle | 0 – 750 ms | Cup seen side-on, rattling on the table, dice hidden inside. **Six shakes, then still.** |
 | Lift | 750 – 1100 ms | Cup rises straight up and fades out. |
 | Reveal | 840 – 1260 ms | Dice drop into place, staggered, under the lifting cup. |
 | Camera swing | 1050 – 1650 ms | Camera arcs from the side view round to directly overhead. |
@@ -24,6 +24,18 @@ Timings live in `BEATS` in `app/roll-timing.ts` — a module with no three.js im
 so `page.tsx` can read `ROLL_MS` (the total) without pulling the 3D chunk into the
 initial bundle. `ROLL_MS` is what the AI turn waits for before its opening bid, and
 only when the animation is switched on.
+
+## Both cups shake the same, and they stop
+
+`SHAKE_CYCLES = 6` in `app/roll-timing.ts` is the one source of truth. The 3D cup
+derives its wobble from it — every term is a whole number of cycles across the
+shake window, so at 750 ms the cup is back at rest rather than frozen mid-wobble.
+The AI's flat cup gets the same six from `SHAKE_CYCLE_MS` and `SHAKE_CYCLES`, set
+inline by `dice-tray.tsx` on the CSS animation.
+
+It used to loop `infinite`, so the AI's cup rattled for the whole round. Nobody
+shakes a cup non-stop in real life and it is distracting to sit beside. If you
+change the count, change it in `roll-timing.ts` only.
 
 ## Layout
 

@@ -7,7 +7,7 @@
 
 import * as THREE from 'three';
 
-import { BEATS, ROLL_3D_MS } from './roll-timing';
+import { BEATS, ROLL_3D_MS, SHAKE_CYCLES } from './roll-timing';
 
 export { BEATS, ROLL_3D_MS };
 
@@ -213,12 +213,16 @@ export function playRoll(opts: {
     camera.lookAt(camLook.copy(LOOK_SIDE).lerp(LOOK_TOP, swing));
 
     // cup: rattle on the table, then lift straight up and fade
-    const shaking = t < BEATS.shakeTo;
-    if (shaking) {
-      const w = t * 0.055;
-      cupGroup.position.set(Math.sin(w) * 0.13, Math.abs(Math.sin(w * 0.9)) * 0.09, Math.cos(w * 1.3) * 0.09);
-      cupGroup.rotation.z = Math.sin(w * 1.1) * 0.045;
-      cupGroup.rotation.x = Math.cos(w * 0.8) * 0.03;
+    // Every term is a whole number of cycles over the shake window, so at shakeTo
+    // the cup is back at rest and simply stops rather than freezing mid-wobble.
+    if (t < BEATS.shakeTo) {
+      const w = (t / BEATS.shakeTo) * SHAKE_CYCLES * Math.PI * 2;
+      cupGroup.position.set(Math.sin(w) * 0.13, Math.abs(Math.sin(w)) * 0.09, Math.sin(w * 2) * 0.09);
+      cupGroup.rotation.z = Math.sin(w) * 0.045;
+      cupGroup.rotation.x = Math.sin(w * 2) * 0.03;
+    } else if (t < BEATS.liftFrom) {
+      cupGroup.position.set(0, 0, 0);
+      cupGroup.rotation.set(0, 0, 0);
     }
     const lift = easeOut(span(t, BEATS.liftFrom, BEATS.liftTo));
     if (lift > 0) {

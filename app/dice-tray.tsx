@@ -14,7 +14,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ShieldQuestion } from 'lucide-react';
 import { Die } from './die';
 import { hasWebGL } from './animation-pref';
-import { BEATS, ROLL_3D_MS } from './roll-timing';
+import { BEATS, ROLL_3D_MS, SHAKE_CYCLE_MS, SHAKE_CYCLES } from './roll-timing';
 
 export { ROLL_3D_MS as ROLL_MS };
 
@@ -84,7 +84,12 @@ export function DiceTray({
   if (concealed) {
     return (
       <div className="dice-quincunx concealed">
-        <div className={`cup-flat ${animate ? 'rattling' : ''}`} aria-label={hiddenLabel}>
+        <div
+          className={`cup-flat ${animate ? 'rattling' : ''}`}
+          aria-label={hiddenLabel}
+          // Same six shakes as the 3D cup, then still.
+          style={animate ? { animationDuration: `${SHAKE_CYCLE_MS}ms`, animationIterationCount: SHAKE_CYCLES } : undefined}
+        >
           <span className="cup-body" />
           <span className="cup-lip" />
           <ShieldQuestion size={22} />

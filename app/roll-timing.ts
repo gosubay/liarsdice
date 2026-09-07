@@ -18,3 +18,16 @@ export const BEATS = {
 
 /** Total wall time of the 3D roll. Ceiling is 2000ms — decided 2026-09-07. */
 export const ROLL_3D_MS = BEATS.holdTo;
+
+/**
+ * How many times a cup rattles before it holds still. Both cups use this: the 3D
+ * one in roll-3d.ts and the AI's flat one, which dice-tray.tsx drives by setting
+ * the CSS animation's duration and iteration count from here.
+ *
+ * Nobody shakes a cup non-stop in real life, and a loop that never ends is
+ * distracting to sit next to. Six shakes, then still.
+ */
+export const SHAKE_CYCLES = 6;
+
+/** One rattle. shakeTo / SHAKE_CYCLES, so the shake ends exactly on the beat. */
+export const SHAKE_CYCLE_MS = BEATS.shakeTo / SHAKE_CYCLES;
