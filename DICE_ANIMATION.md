@@ -37,6 +37,20 @@ It used to loop `infinite`, so the AI's cup rattled for the whole round. Nobody
 shakes a cup non-stop in real life and it is distracting to sit beside. If you
 change the count, change it in `roll-timing.ts` only.
 
+## Both cups face down
+
+A dice cup is slammed **mouth-down** on the table — that is the only way the dice
+stay hidden. Both cups must read that way and neither ever flips:
+
+- The 3D cup is `CylinderGeometry(1.55, 2.05, ...)` — narrow at the top, wide at the
+  bottom — with the rim torus on the table at `y = 0.03`. It lifts **straight up,
+  still mouth-down**; there is no rotation in the lift beat, only `position.y` and a
+  fade. Dice are revealed by the cup clearing them, not by tipping it over.
+- The AI's flat CSS cup mirrors that: `.cup-body`'s `clip-path` is narrow at the top
+  and full width at the bottom, and `.cup-lip` sits at the **bottom** (`bottom: -3px`).
+  It used to be drawn the other way up — a tumbler with the lip on top — which read as
+  an open cup facing the ceiling while the player's faced down. Fixed 2026-09-08.
+
 ## Layout
 
 Five dice in a **quincunx** — four corners and one in the middle. `SPOTS` in
