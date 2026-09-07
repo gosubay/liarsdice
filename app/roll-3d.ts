@@ -81,8 +81,16 @@ export function playRoll(opts: {
   canvas: HTMLCanvasElement;
   dice: number[];
   onSettled: () => void;
+  /**
+   * Where in the timeline to start, in ms. 0 plays the whole roll. BEATS.liftFrom
+   * skips the shake and lifts straight away — that is the AI's reveal, whose cup
+   * already had its six shakes at the top of the round and has been sitting still
+   * ever since. Nothing else changes: the beats keep their absolute times, only
+   * less of the timeline is played.
+   */
+  startAt?: number;
 }): RollHandle {
-  const { canvas, dice, onSettled } = opts;
+  const { canvas, dice, onSettled, startAt = 0 } = opts;
 
   const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -254,7 +262,7 @@ export function playRoll(opts: {
   function frame(now: number) {
     if (!start) start = now;
     frames += 1;
-    const t = now - start;
+    const t = now - start + startAt;
     draw(t);
     if (t >= BEATS.holdTo) { finishOnce(); return; }
     raf = requestAnimationFrame(frame);
@@ -266,7 +274,7 @@ export function playRoll(opts: {
   // if nothing has drawn shortly after the start, hand straight over to the flat
   // dice; and whatever happens, never hold the round past the animation's length.
   const stall = window.setTimeout(() => { if (frames === 0) finishOnce(); }, 400);
-  const guard = window.setTimeout(finishOnce, BEATS.holdTo + 300);
+  const guard = window.setTimeout(finishOnce, BEATS.holdTo - startAt + 300);
 
   const teardown = () => {
     cancelAnimationFrame(raf);

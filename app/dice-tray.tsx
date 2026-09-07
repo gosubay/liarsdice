@@ -13,7 +13,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { ShieldQuestion } from 'lucide-react';
 import { Die } from './die';
-import { hasWebGL } from './animation-pref';
+import { hasWebGL } from './prefs';
+import { playRollSound, type SoundHandle } from './roll-sound';
 import { BEATS, ROLL_3D_MS, SHAKE_CYCLE_MS, SHAKE_CYCLES } from './roll-timing';
 
 export { ROLL_3D_MS as ROLL_MS };
@@ -29,12 +30,20 @@ type Handle = { cancel: () => void; finish: () => void; step: (t: number) => voi
  * way in.
  */
 export function DiceTray({
-  dice, concealed, animate = true, hiddenLabel, skipLabel, dieLabel,
+  dice, concealed, animate = true, sound = true, reveal = false, hiddenLabel, skipLabel, dieLabel,
 }: {
   dice: number[];
   /** Keep the cup down — used for the AI until someone calls. */
   concealed: boolean;
   animate?: boolean;
+  /** Play the rattle and the lift. Silent when off, or when there is no animation. */
+  sound?: boolean;
+  /**
+   * Showing a hand that was already shaken — the AI's, once a bid is called. The cup
+   * skips the rattle and only lifts, because it shook at the top of the round and has
+   * been sitting still since.
+   */
+  reveal?: boolean;
   hiddenLabel: string;
   skipLabel: string;
   dieLabel: string;
@@ -47,6 +56,8 @@ export function DiceTray({
   const [settled, setSettled] = useState(!rolling);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const handle = useRef<Handle | null>(null);
+  const audio = useRef<SoundHandle | null>(null);
+  const startAt = reveal ? BEATS.liftFrom : 0;
 
   useEffect(() => {
     if (!rolling) return;
@@ -54,12 +65,17 @@ export function DiceTray({
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    // The sound starts here rather than inside roll-3d, so it is scheduled on the
+    // same tick the roll is asked for instead of waiting on the three.js chunk.
+    if (sound) audio.current = playRollSound(startAt);
+
     import('./roll-3d')
       .then(({ playRoll }) => {
         if (!live) return;
         handle.current = playRoll({
           canvas,
           dice: diceKey.split('').map(Number),
+          startAt,
           onSettled: () => setSettled(true),
         });
         // Debug seam: lets the beats be stepped through by hand from the console.
@@ -71,12 +87,16 @@ export function DiceTray({
       live = false;
       handle.current?.cancel();
       handle.current = null;
+      audio.current?.stop();
+      audio.current = null;
     };
-  }, [diceKey, rolling]);
+  }, [diceKey, rolling, sound, startAt]);
 
   const skip = () => {
     handle.current?.finish();
     handle.current = null;
+    audio.current?.stop();
+    audio.current = null;
     setSettled(true);
   };
 

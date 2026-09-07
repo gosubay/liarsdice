@@ -20,6 +20,15 @@ a flat side-on cup that stays down on the table until someone calls.
 **Total 1900 ms.** The ceiling is 2 s — decided 2026-09-07. If a beat grows,
 another has to shrink.
 
+### The reveal is the same timeline, started late
+
+When a bid is called, the AI's hand is shown by running this same sequence with
+`startAt = BEATS.liftFrom` — the shake is simply not played. Its cup already had
+its six shakes at the top of the round and has been sitting still since, so
+re-rattling it at the reveal looked wrong. `ROLL_REVEAL_MS` (1150 ms) is the length
+of what is left. Nothing else changes: the beats keep their absolute times, only
+less of the timeline is played. `DiceTray`'s `reveal` prop turns this on.
+
 Timings live in `BEATS` in `app/roll-timing.ts` — a module with no three.js import,
 so `page.tsx` can read `ROLL_MS` (the total) without pulling the 3D chunk into the
 initial bundle. `ROLL_MS` is what the AI turn waits for before its opening bid, and
@@ -50,6 +59,35 @@ stay hidden. Both cups must read that way and neither ever flips:
   and full width at the bottom, and `.cup-lip` sits at the **bottom** (`bottom: -3px`).
   It used to be drawn the other way up — a tumbler with the lip on top — which read as
   an open cup facing the ceiling while the player's faced down. Fixed 2026-09-08.
+
+## Sound
+
+`app/roll-sound.ts` synthesises the audio with the Web Audio API rather than shipping
+audio files. Nothing extra to download, and every hit is placed from the same `BEATS`
+as the picture, so the clatter cannot drift out of step with the cup.
+
+| Ingredient | What it is | When |
+|---|---|---|
+| Rattle | bursts of band-passed noise — dice knocking inside the cup | one burst per shake, 0 – 750 ms |
+| Thump | a short sine drop, the cup meeting the table | once per shake |
+| Scrape | a noise sweep opening from 320 Hz to 1.5 kHz | 750 – 1100 ms, on the lift |
+| Clacks | five knocks, staggered like the meshes appearing | from 900 ms |
+
+Rules:
+
+- **Nothing can ever start on its own.** `playRollSound` is only called from a roll,
+  which only ever follows a button press, so the browser's autoplay rules are met and
+  the page is silent on load.
+- **The player can switch it off**, next to the animation toggle, persisted in
+  `localStorage` under `liarsdice.sound`. Both prefs live in `app/prefs.ts`.
+- **Sound follows the picture.** No animation means no sound: it is scheduled by
+  `dice-tray.tsx` in the same effect that starts the roll.
+- **One rattle per round, not two.** Both cups shake at the top of a round, but only
+  the player's 3D roll is voiced. Two overlapping rattles just sound like mud. The
+  AI's reveal gets the lift and the clacks only, which falls out of `startAt` for
+  free.
+- **Skipping must not click.** `stop()` ramps the master gain down over 40 ms before
+  stopping the sources.
 
 ## Layout
 

@@ -31,3 +31,9 @@ export const SHAKE_CYCLES = 6;
 
 /** One rattle. shakeTo / SHAKE_CYCLES, so the shake ends exactly on the beat. */
 export const SHAKE_CYCLE_MS = BEATS.shakeTo / SHAKE_CYCLES;
+
+/**
+ * How long a reveal takes: the cup lifting and the camera swinging, with no shake.
+ * Used for the AI's hand, which was shaken at the top of the round.
+ */
+export const ROLL_REVEAL_MS = BEATS.holdTo - BEATS.liftFrom;

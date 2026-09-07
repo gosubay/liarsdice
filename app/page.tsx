@@ -14,12 +14,15 @@ import {
   Swords,
   Trophy,
   UserRound,
+  Volume2,
+  VolumeX,
   X,
 } from 'lucide-react';
 
 import { Die } from './die';
+import { LogoDie } from './logo';
 import { DiceTray, ROLL_MS } from './dice-tray';
-import { useAnimationPref } from './animation-pref';
+import { useAnimationPref, useSoundPref } from './prefs';
 import { MathPage } from './math';
 import { RulesPage } from './rules';
 import { SolverGrid } from './solver';
@@ -83,7 +86,7 @@ const copy = {
     reroll: 'Re-roll straight', rerolled: 'Straight re-rolled', concealed: 'Hidden dice', noBid: 'No bid yet',
     challenged: 'Bid challenged', actual: 'matching dice', bidHeld: 'The bid holds.', bidFailed: 'The bid was a bluff.',
     youLose: 'You lose this round', aiLoses: 'AI loses this round', next: 'Next round', matchOver: 'Match over',
-    youWin: 'You win the match', aiWins: 'AI wins the match', playAgain: 'Play again', leave: 'Leave table', reset: 'Restart match',
+    youWin: 'You win the match', aiWins: 'AI wins the match', playAgain: 'Play again', leave: 'Leave table', reset: 'New match',
     invalid: 'Raise the current bid to continue.', feiRequired: 'To break zhai, call at least double the quantity.',
     fei: 'Fei · 飞', normal: 'Wild', rulesTitle: 'Table rules', close: 'Close',
     rules: ['Each player always rolls five dice.', 'On a normal bid, ones are wild.', 'Bids rank 1 › 6 › 5 › 4 › 3 › 2.', 'A bid on ones is automatically zhai.', 'In zhai, wild ones do not count.', 'Break zhai with at least double the quantity.', 'Five different faces may be re-rolled once.', 'The round loser gains one loss.'],
@@ -92,6 +95,8 @@ const copy = {
     openingFloor: 'Open with at least 3 wild, 2 zhai, or 2 ones.', skipRoll: 'Skip', dieLabel: 'Die showing',
     difficulty: 'Bot difficulty', startGame: 'Start game', opponentWith: (level: string) => `You vs ${level} AI`,
     animationOn: 'Dice animation on', animationOff: 'Dice animation off',
+    soundOn: 'Sound on', soundOff: 'Sound off',
+    botLabel: 'Bot',
     easy: 'Easy', easyNote: 'Bids almost at random and challenges on a whim',
     hard: 'Hard', hardNote: 'Plays the CFR-solved strategy from the GTO tab',
     solverFallback: 'off-book',
@@ -106,7 +111,7 @@ const copy = {
     reroll: '顺子重摇', rerolled: '顺子已重摇', concealed: '骰子未开', noBid: '尚未叫骰',
     challenged: '开骰', actual: '粒符合', bidHeld: '叫骰成立。', bidFailed: '叫骰不成立。',
     youLose: '你输掉本局', aiLoses: '电脑输掉本局', next: '下一局', matchOver: '比赛结束',
-    youWin: '你赢得比赛', aiWins: '电脑赢得比赛', playAgain: '再玩一次', leave: '离开桌面', reset: '重新开始',
+    youWin: '你赢得比赛', aiWins: '电脑赢得比赛', playAgain: '再玩一次', leave: '离开桌面', reset: '新对局',
     invalid: '必须提高当前叫骰。', feiRequired: '破斋需要至少叫双倍数量。',
     fei: '飞', normal: '万能', rulesTitle: '桌面规则', close: '关闭',
     rules: ['每位玩家始终摇五粒骰。', '普通叫骰时，一点可作万能。', '点数顺序为 1 › 6 › 5 › 4 › 3 › 2。', '叫一点自动视为斋。', '斋叫时，一点不作万能。', '破斋必须至少叫双倍数量。', '五个不同点数可选择重摇一次。', '每局输家增加一负。'],
@@ -115,6 +120,8 @@ const copy = {
     openingFloor: '开叫至少要三个万能、两个斋，或两个一点。', skipRoll: '跳过', dieLabel: '骰子点数',
     difficulty: '电脑难度', startGame: '开始对局', opponentWith: (level: string) => `你 对 ${level}电脑`,
     animationOn: '开骰动画：开', animationOff: '开骰动画：关',
+    soundOn: '声音：开', soundOff: '声音：关',
+    botLabel: '电脑',
     easy: '简单', easyNote: '几乎随机叫骰，随兴开骰',
     hard: '困难', hardNote: '使用 GTO 页面里的 CFR 求解策略',
     solverFallback: '超出求解',
@@ -134,6 +141,7 @@ export default function Home() {
   const [mode, setMode] = useState<MatchMode>('five');
   const [difficulty, setDifficulty] = useState<Difficulty>('easy');
   const [animation, setAnimation] = useAnimationPref();
+  const [sound, setSound] = useSoundPref();
   const [policy, setPolicy] = useState<Policy | null>(null);
   const [wentOffBook, setWentOffBook] = useState(false);
   const [screen, setScreen] = useState<'setup' | 'game'>('setup');
@@ -305,7 +313,7 @@ export default function Home() {
       <div className="table-glow" aria-hidden="true" />
       <header className="site-header">
         <button className="brand" onClick={() => { setTab('play'); setScreen('setup'); }} aria-label={language === 'en' ? 'Return to setup' : '返回设置'}>
-          <span className="logo-die" aria-hidden="true"><i /><i /><i /></span>
+          <span className="logo-die" aria-hidden="true"><LogoDie /></span>
           <span>LIARSDICE</span>
         </button>
         <nav className="tab-nav" aria-label={t.setup}>
@@ -367,9 +375,14 @@ export default function Home() {
                 </button>
               ))}
             </div>
-            <button type="button" className={`motion-toggle mt-5 ${animation ? 'on' : ''}`} aria-pressed={animation} onClick={() => setAnimation(!animation)}>
-              <Sparkles size={13} />{animation ? t.animationOn : t.animationOff}
-            </button>
+            <div className="toggle-row mt-5">
+              <button type="button" className={`motion-toggle ${animation ? 'on' : ''}`} aria-pressed={animation} onClick={() => setAnimation(!animation)}>
+                <Sparkles size={13} />{animation ? t.animationOn : t.animationOff}
+              </button>
+              <button type="button" className={`motion-toggle ${sound ? 'on' : ''}`} aria-pressed={sound} onClick={() => setSound(!sound)}>
+                {sound ? <Volume2 size={13} /> : <VolumeX size={13} />}{sound ? t.soundOn : t.soundOff}
+              </button>
+            </div>
             <button className="primary-button mt-4" onClick={() => startMatch()}>{t.startGame}<span>→</span></button>
             <p className="fine-print">{t.rulesLine}</p>
           </div>
@@ -377,20 +390,23 @@ export default function Home() {
       ) : (
         <section className="game-shell">
           <div className="game-topbar">
-            <div><span>{t.round}</span><b>{round}</b></div>
+            <div><span>{t.round}</span><b>{round}</b><em className={`difficulty-tag ${difficulty}`}><Swords size={11} />{difficulty === 'easy' ? t.easy : t.hard}</em></div>
             <span className={`turn-indicator ${turn === 'ai' ? 'thinking' : ''}`}><i />{phase === 'playing' ? (turn === 'human' ? t.turn : t.aiTurn) : t.challenged}</span>
             <div className="topbar-actions">
               <button type="button" className={`motion-toggle ${animation ? 'on' : ''}`} aria-pressed={animation} onClick={() => setAnimation(!animation)} title={animation ? t.animationOn : t.animationOff}>
                 <Sparkles size={13} /><span>{animation ? t.animationOn : t.animationOff}</span>
               </button>
-              <button className="quiet-button" onClick={() => startMatch(mode)}><RotateCcw size={15} />{t.reset}</button>
+              <button type="button" className={`motion-toggle ${sound ? 'on' : ''}`} aria-pressed={sound} onClick={() => setSound(!sound)} title={sound ? t.soundOn : t.soundOff}>
+                {sound ? <Volume2 size={13} /> : <VolumeX size={13} />}<span>{sound ? t.soundOn : t.soundOff}</span>
+              </button>
+              <button className="quiet-button" onClick={() => setScreen('setup')}><RotateCcw size={15} /><span>{t.reset}</span></button>
             </div>
           </div>
 
           <div className="players-row">
             <article className={`player-card ${turn === 'human' && phase === 'playing' ? 'active' : ''}`}>
               <div className="player-meta"><span className="avatar human"><UserRound size={19} /></span><div><b>{t.you}</b><small>{starter === 'human' ? t.starter : ' '}</small></div><span className="score-record" aria-label={`${t.you} ${t.record}: ${losses.ai}–${losses.human}`}><small>{t.record}</small><em>{losses.ai}<i>–</i>{losses.human}</em></span></div>
-              <DiceTray key={`h-${round}-${humanDice.join('')}`} dice={humanDice} concealed={false} animate={animation} hiddenLabel={t.concealed} skipLabel={t.skipRoll} dieLabel={t.dieLabel} />
+              <DiceTray key={`h-${round}-${humanDice.join('')}`} dice={humanDice} concealed={false} animate={animation} sound={sound} hiddenLabel={t.concealed} skipLabel={t.skipRoll} dieLabel={t.dieLabel} />
               {phase === 'playing' && isStraight(humanDice) && !didReroll && (
                 <button className="reroll-button" onClick={() => { setHumanDice(rollFive()); setDidReroll(true); setNotice(t.rerolled); }}><Sparkles size={15} />{t.reroll}</button>
               )}
@@ -398,7 +414,7 @@ export default function Home() {
 
             <article className={`player-card ${turn === 'ai' && phase === 'playing' ? 'active' : ''}`}>
               <div className="player-meta"><span className="avatar ai"><Bot size={19} /></span><div><b>{t.ai}<em className={`difficulty-tag ${difficulty}`}><Swords size={11} />{difficulty === 'easy' ? t.easy : t.hard}</em>{wentOffBook && <em className="difficulty-tag offbook" title={t.solverFallbackHelp}>{t.solverFallback}</em>}</b><small>{starter === 'ai' ? t.starter : ' '}</small></div><span className="score-record" aria-label={`${t.ai} ${t.record}: ${losses.human}–${losses.ai}`}><small>{t.record}</small><em>{losses.human}<i>–</i>{losses.ai}</em></span></div>
-              <DiceTray key={`a-${round}-${phase}`} dice={aiDice} concealed={phase === 'playing'} animate={animation} hiddenLabel={t.concealed} skipLabel={t.skipRoll} dieLabel={t.dieLabel} />
+              <DiceTray key={`a-${round}-${phase}`} dice={aiDice} concealed={phase === 'playing'} reveal animate={animation} sound={sound} hiddenLabel={t.concealed} skipLabel={t.skipRoll} dieLabel={t.dieLabel} />
             </article>
           </div>
 

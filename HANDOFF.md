@@ -1,6 +1,6 @@
 # HANDOFF — Liar's Dice (大话骰)
 
-Last updated: 2026-09-07 (SGT)
+Last updated: 2026-09-08 (SGT)
 
 ## What this project is
 
@@ -41,10 +41,14 @@ Five top-level tabs, in this order — the order is a learning path and is delib
    seat-swapped rounds. Opening bids must be at least 3 wild, 2 zhai, or 2 ones.
    Rounds open with a 1.9 s three.js dice-cup animation — the cup rattles seen
    side-on, lifts away, and the camera swings overhead to leave five dice in a
-   quincunx; the AI's cup stays down until a call. There is a player-facing
-   on/off toggle (setup card and game topbar) persisted in `localStorage`, and
-   three.js is a separate 132 KB gzipped chunk fetched only when a roll actually
-   plays. See `DICE_ANIMATION.md`.
+   quincunx. Both cups are mouth-down and neither ever flips. The AI's cup stays
+   down until a call, then plays the same timeline from the lift onwards (1.15 s,
+   no second rattle). Sound is synthesised in `app/roll-sound.ts` — no audio files.
+   Two player-facing toggles, animation and sound, on the setup card and in the
+   game topbar, persisted in `localStorage` via `app/prefs.ts`; three.js is a
+   separate 132 KB gzipped chunk fetched only when a roll actually plays.
+   The topbar also shows the bot's difficulty, and **New match** goes back to the
+   setup card so the difficulty can be re-picked. See `DICE_ANIMATION.md`.
 2. **Rules** — the variant stated in words, mirroring exactly what Play enforces.
 3. **Math** — why a wild one doubles your odds, expected counts, and the binomial
    spread as a chart. Every figure is computed live, never hard-coded.
