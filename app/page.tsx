@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 
 import { Die } from './die';
+import { DiceTray, ROLL_MS } from './dice-tray';
 import { MathPage } from './math';
 import { RulesPage } from './rules';
 import { SolverGrid } from './solver';
@@ -87,7 +88,7 @@ const copy = {
     rules: ['Each player always rolls five dice.', 'On a normal bid, ones are wild.', 'Bids rank 1 › 6 › 5 › 4 › 3 › 2.', 'A bid on ones is automatically zhai.', 'In zhai, wild ones do not count.', 'Break zhai with at least double the quantity.', 'Five different faces may be re-rolled once.', 'The round loser gains one loss.'],
     starter: 'Round loser starts', setup: 'Match setup', menu: 'Rules',
     tabPlay: 'Play', tabRules: 'Rules', tabMath: 'Math', tabStrategy: 'GTO Strategy', tabSolver: 'Solver',
-    openingFloor: 'Open with at least 3 wild, 2 zhai, or 2 ones.',
+    openingFloor: 'Open with at least 3 wild, 2 zhai, or 2 ones.', skipRoll: 'Skip', dieLabel: 'Die showing',
     difficulty: 'Bot difficulty', startGame: 'Start game', opponentWith: (level: string) => `You vs ${level} AI`,
     easy: 'Easy', easyNote: 'Bids almost at random and challenges on a whim',
     hard: 'Hard', hardNote: 'Plays the CFR-solved strategy from the GTO tab',
@@ -109,7 +110,7 @@ const copy = {
     rules: ['每位玩家始终摇五粒骰。', '普通叫骰时，一点可作万能。', '点数顺序为 1 › 6 › 5 › 4 › 3 › 2。', '叫一点自动视为斋。', '斋叫时，一点不作万能。', '破斋必须至少叫双倍数量。', '五个不同点数可选择重摇一次。', '每局输家增加一负。'],
     starter: '输家下一局先叫', setup: '比赛设置', menu: '规则',
     tabPlay: '对局', tabRules: '规则', tabMath: '算术', tabStrategy: 'GTO 策略', tabSolver: '求解器',
-    openingFloor: '开叫至少要三个万能、两个斋，或两个一点。',
+    openingFloor: '开叫至少要三个万能、两个斋，或两个一点。', skipRoll: '跳过', dieLabel: '骰子点数',
     difficulty: '电脑难度', startGame: '开始对局', opponentWith: (level: string) => `你 对 ${level}电脑`,
     easy: '简单', easyNote: '几乎随机叫骰，随兴开骰',
     hard: '困难', hardNote: '使用 GTO 页面里的 CFR 求解策略',
@@ -230,6 +231,8 @@ export default function Home() {
 
   useEffect(() => {
     if (screen !== 'game' || phase !== 'playing' || turn !== 'ai') return;
+    // On the opening bid the cups are still being shaken, so wait them out.
+    const opening = currentBid ? 0 : ROLL_MS;
     const timer = window.setTimeout(() => {
       let move: PolicyMove | null = null;
 
@@ -245,7 +248,7 @@ export default function Home() {
       const chosen = move ?? easyMove();
       if (chosen.kind === 'bid') placeBid(chosen.bid, 'ai');
       else if (currentBid) challenge('ai');
-    }, 720);
+    }, 720 + opening);
     return () => window.clearTimeout(timer);
   }, [aiDice, challenge, currentBid, difficulty, easyMove, phase, placeBid, policy, screen, turn]);
 
@@ -375,7 +378,7 @@ export default function Home() {
           <div className="players-row">
             <article className={`player-card ${turn === 'human' && phase === 'playing' ? 'active' : ''}`}>
               <div className="player-meta"><span className="avatar human"><UserRound size={19} /></span><div><b>{t.you}</b><small>{starter === 'human' ? t.starter : ' '}</small></div><span className="score-record" aria-label={`${t.you} ${t.record}: ${losses.ai}–${losses.human}`}><small>{t.record}</small><em>{losses.ai}<i>–</i>{losses.human}</em></span></div>
-              <div className="dice-row">{humanDice.map((die, i) => <Die key={`${round}-h-${i}`} value={die} accent={die === 1} />)}</div>
+              <DiceTray key={`h-${round}-${humanDice.join('')}`} dice={humanDice} concealed={false} hiddenLabel={t.concealed} skipLabel={t.skipRoll} dieLabel={t.dieLabel} />
               {phase === 'playing' && isStraight(humanDice) && !didReroll && (
                 <button className="reroll-button" onClick={() => { setHumanDice(rollFive()); setDidReroll(true); setNotice(t.rerolled); }}><Sparkles size={15} />{t.reroll}</button>
               )}
@@ -383,7 +386,7 @@ export default function Home() {
 
             <article className={`player-card ${turn === 'ai' && phase === 'playing' ? 'active' : ''}`}>
               <div className="player-meta"><span className="avatar ai"><Bot size={19} /></span><div><b>{t.ai}<em className={`difficulty-tag ${difficulty}`}><Swords size={11} />{difficulty === 'easy' ? t.easy : t.hard}</em>{wentOffBook && <em className="difficulty-tag offbook" title={t.solverFallbackHelp}>{t.solverFallback}</em>}</b><small>{starter === 'ai' ? t.starter : ' '}</small></div><span className="score-record" aria-label={`${t.ai} ${t.record}: ${losses.human}–${losses.ai}`}><small>{t.record}</small><em>{losses.human}<i>–</i>{losses.ai}</em></span></div>
-              <div className="dice-row">{aiDice.map((die, i) => <Die key={`${round}-a-${i}`} value={phase === 'playing' ? undefined : die} hidden={phase === 'playing'} accent={phase !== 'playing' && die === 1} />)}</div>
+              <DiceTray key={`a-${round}-${phase}`} dice={aiDice} concealed={phase === 'playing'} hiddenLabel={t.concealed} skipLabel={t.skipRoll} dieLabel={t.dieLabel} />
             </article>
           </div>
 

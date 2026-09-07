@@ -39,6 +39,8 @@ Five top-level tabs, in this order — the order is a learning path and is delib
 1. **Play** — the game, with an Easy / Hard bot selector and a Start game button.
    Hard plays the CFR-solved policy and beats Easy 76.2% to 23.8% over 200,000
    seat-swapped rounds. Opening bids must be at least 3 wild, 2 zhai, or 2 ones.
+   Rounds open with a 1.41 s dice-cup animation — both cups rattle, yours opens,
+   the AI's stays down until a call. CSS 3D, no library. See `DICE_ANIMATION.md`.
 2. **Rules** — the variant stated in words, mirroring exactly what Play enforces.
 3. **Math** — why a wild one doubles your odds, expected counts, and the binomial
    spread as a chart. Every figure is computed live, never hard-coded.

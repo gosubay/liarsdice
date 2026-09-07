@@ -317,3 +317,59 @@ button:disabled { cursor: not-allowed; }
 }
 
 .notice.floor-hint { color: #7d807b; }
+
+/* ---------- Dice cup: rattle, lift, tumble ---------- */
+/* Timings mirror TIMING in app/dice-tray.tsx. Change both together. */
+
+.dice-row { position: relative; }
+.dice-row.tray:not(.settled) { cursor: pointer; }
+.dice-row.tray:focus-visible { outline: 2px solid #ff7668; outline-offset: 4px; border-radius: 12px; }
+
+/* the cube */
+.cube-die { --half: calc(clamp(45px, 6vw, 58px) / 2); display: block; width: clamp(45px, 6vw, 58px); aspect-ratio: 1; flex: 0 1 58px; perspective: 620px; filter: drop-shadow(0 7px 14px rgba(0,0,0,.42)); }
+.cube { position: relative; display: block; width: 100%; height: 100%; transform-style: preserve-3d; }
+.cube.tumbling { animation-name: die-tumble; animation-timing-function: cubic-bezier(.22, .8, .3, 1); animation-fill-mode: both; }
+@keyframes die-tumble { from { transform: var(--from); } to { transform: var(--to); } }
+
+.cube-face { position: absolute; inset: 0; display: grid; place-items: center; border-radius: 14px; background: #f1eadf; color: #242424; box-shadow: inset 0 2px 0 rgba(255,255,255,.9), inset 0 0 0 1px rgba(0,0,0,.09); backface-visibility: hidden; }
+.cube-die.is-one .cube-face.f1 { background: #e94a3c; color: white; }
+.cube-die .cube-face { filter: brightness(var(--face-shade, 1)); }
+.cube-face.f6, .cube-face.f3 { --face-shade: .9; }
+.cube-face.f4, .cube-face.f5 { --face-shade: .82; }
+
+/* the cup */
+.cup { position: absolute; inset: -6px -4px auto; z-index: 3; display: grid; height: calc(clamp(45px, 6vw, 58px) + 12px); place-items: center; color: #6d6558; pointer-events: none; }
+.cup-body { position: absolute; inset: 0; clip-path: polygon(0 0, 100% 0, calc(100% - 9px) 100%, 9px 100%); border-radius: 4px 4px 9px 9px; background: linear-gradient(96deg, #241f1a 0%, #4e4339 18%, #6a5b4b 34%, #3b332c 62%, #241f1a 100%); box-shadow: 0 14px 28px rgba(0,0,0,.55), inset 0 -16px 26px rgba(0,0,0,.4); }
+.cup-lip { position: absolute; top: -3px; right: -3px; left: -3px; height: 11px; border-radius: 7px; background: linear-gradient(#8a7761, #56493d 55%, #332c25); box-shadow: 0 3px 7px rgba(0,0,0,.45), inset 0 1px rgba(255,255,255,.28); }
+.cup svg { position: relative; z-index: 1; margin-top: 6px; opacity: .55; }
+
+.cup.closed.rattling { animation: cup-rattle 130ms linear infinite; }
+.dice-row.tray.shaking .cup.lifting { animation: cup-rattle 130ms linear infinite; }
+.dice-row.tray.opening .cup.lifting,
+.dice-row.tray.settled .cup.lifting { animation: cup-lift 220ms cubic-bezier(.4, 0, .7, .2) forwards; }
+
+@keyframes cup-rattle {
+  0%   { transform: translate3d(0, 0, 0) rotate(0deg); }
+  25%  { transform: translate3d(-4px, -2px, 0) rotate(-1.6deg); }
+  50%  { transform: translate3d(3px, 1px, 0) rotate(1.3deg); }
+  75%  { transform: translate3d(-2px, -3px, 0) rotate(-.9deg); }
+  100% { transform: translate3d(0, 0, 0) rotate(0deg); }
+}
+@keyframes cup-lift {
+  from { transform: translateY(0) scale(1); opacity: 1; }
+  to   { transform: translateY(-108%) scale(1.04); opacity: 0; }
+}
+
+/* dice stay under the cup until it starts to lift */
+.dice-row.tray.shaking .cube-die { opacity: 0; }
+.dice-row.tray.opening .cube-die,
+.dice-row.tray.settled .cube-die { opacity: 1; }
+
+.tray-skip { position: absolute; z-index: 4; right: 0; bottom: -24px; border: 1px solid var(--border); border-radius: 999px; background: rgba(255,255,255,.05); padding: 3px 11px; color: #9a9c97; font-size: 11px; font-weight: 650; cursor: pointer; }
+.tray-skip:hover { color: #f2ece1; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cup, .tray-skip { display: none; }
+  .cube.tumbling { animation: none !important; }
+  .dice-row.tray.shaking .cube-die { opacity: 1; }
+}
