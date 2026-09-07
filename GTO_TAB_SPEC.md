@@ -61,16 +61,41 @@ The grid is the product's main idea, and its ordering is load-bearing:
 
 ## Colour coding
 
-Each cell is a split bar showing the action mix for that hand in the selected state:
+Colours live in `app/palette.ts`, mirrored as CSS tokens in `app/globals.css`.
+Change them in both, and re-run the validator — do not pick one by eye.
 
-| Colour | Hex | Meaning |
+Each cell is a split bar showing the action mix, drawn in this order with a 2px gap
+between segments so thin slivers stay legible:
+
+| Segment | Token | Colour job |
 |---|---|---|
-| Red | `#e94a3c` | Challenge (开) |
-| Jade | `#4f9a7d` | Raise onto a face the player holds at least one of |
-| Amber | `#d9a441` | Raise onto a face the player holds none of |
+| Challenge | `CHALLENGE` `#e94a3c` | Categorical — its own action |
+| Raise, holding **none** of that face | `BLUFF` `#8f7ae0` | Categorical — bluffing is the opposite of value, not a shade of it |
+| Raise, holding **one** | `VALUE_THIN` `#12a37a` | Sequential step 1 |
+| Raise, holding **two or more** | `VALUE_STRONG` `#63d3ad` | Sequential step 2 |
 
-Amber covers both bluffs and deliberate disguise plays (e.g. five sixes raising onto
-fives), so the label is "raise onto a face you hold none of", never "bluff".
+The two greens are a **sequential ramp**, not two categories: dim to bright reads as
+weak to strong, so more green means more dice without consulting the legend. The
+categorical lightness-band check does not apply to them.
+
+Wild and zhai series on the Math and GTO Strategy tabs use `WILD` `#12a37a` and
+`ZHAI` `#bf8a2a`.
+
+Validated with the dataviz validator against the dark chart surface:
+
+- `#e94a3c, #12a37a, #8f7ae0` passes all five checks under `--pairs all` —
+  worst pair 9.0 ΔE deuteranopia, 24.5 ΔE normal vision.
+- `#12a37a, #bf8a2a` passes all five — 8.9 ΔE protanopia, 18.0 ΔE normal.
+- `VALUE_THIN` → `VALUE_STRONG`: L 0.636 → 0.791, monotonic, contrast 5.7:1 and 10.0:1.
+
+Why not five colours: splitting value further (2 vs 3+) is not a different decision,
+and it pushes cells needing three or more raise segments from 21% to 28% in a 48px
+cell. Four is the measured sweet spot. Decided 2026-09-07.
+
+Amber `#d9a441` and jade `#4f9a7d` were the previous values. Both failed validation
+— the amber too light for the band, the jade below the chroma floor so it read grey —
+and the amber sat perceptually between red and green, making a bluff look like a
+milder challenge. Do not reintroduce them.
 
 ## Controls
 

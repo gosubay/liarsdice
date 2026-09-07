@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { Die } from './die';
+import { BLUFF, CHALLENGE, VALUE_STRONG, VALUE_THIN, raiseColour } from './palette';
 import { loadPolicy, type Policy } from './policy';
 
 type Language = 'en' | 'zh';
@@ -37,8 +38,9 @@ const solverCopy = {
     pocketNote: 'How often the solver challenges this bid, grouped by how many matching dice you hold. This is the part worth memorising.',
     pocketNone: 'Nothing to challenge yet — you are making the opening bid.',
     legendCall: 'Challenge',
-    legendValue: 'Raise onto a face you hold',
-    legendBluff: 'Raise onto a face you hold none of',
+    legendBluff: 'Raise, holding none of that face',
+    legendThin: 'Raise, holding one',
+    legendStrong: 'Raise, holding two or more',
     legendNote: 'Rows group hands by wild ones. Within a row, sixes-heavy hands sit left.',
     caveat: 'Solver preview, not final. This policy folds the whole bid history into just the current bid, caps quantity at seven, and contains no zhai entry from a normal bid and no fei break-out. Treat it as strong guidance, not gospel.',
     loading: 'Loading solved strategy…',
@@ -71,8 +73,9 @@ const solverCopy = {
     pocketNote: '依你手上符合的骰子数量，统计求解器开骰的频率。这一段最值得背下来。',
     pocketNone: '尚无叫骰可开 — 这一手由你先叫。',
     legendCall: '开',
-    legendValue: '加叫到你有的点数',
-    legendBluff: '加叫到你完全没有的点数',
+    legendBluff: '加叫到完全没有的点数',
+    legendThin: '加叫到只有一粒的点数',
+    legendStrong: '加叫到有两粒以上的点数',
     legendNote: '每一行按万能一点的数量分组。同一行内，六点多的牌型排在左边。',
     caveat: '求解预览，非最终版。此策略把完整叫骰历史压缩成当前叫骰，数量上限为七，且不含由普通叫骰转斋与飞。可作强力参考，但非定论。',
     loading: '载入求解策略中…',
@@ -177,9 +180,11 @@ export function SolverGrid({ language }: { language: Language }) {
     return <section className="gto-shell"><p className="gto-loading">{t.loading}</p></section>;
   }
 
+  // Four buckets, in the order they are drawn: ending the auction, then raises
+  // ordered by how much of the target face the hand actually holds.
   const mixFor = (hand: string) => {
+    const out = { call: 0, bluff: 0, thin: 0, strong: 0 };
     const row = policy.d[hand]?.[state];
-    const out = { call: 0, value: 0, bluff: 0 };
     if (!row) return out;
     for (const [index, permille] of row) {
       const action = policy.acts[index];
@@ -187,8 +192,10 @@ export function SolverGrid({ language }: { language: Language }) {
       if (action === 'CALL') { out.call += p; continue; }
       const bid = parseBid(action);
       if (!bid) continue;
-      if (support(hand, bid.face, bid.zhai) === 0) out.bluff += p;
-      else out.value += p;
+      const held = support(hand, bid.face, bid.zhai);
+      if (held === 0) out.bluff += p;
+      else if (held === 1) out.thin += p;
+      else out.strong += p;
     }
     return out;
   };
@@ -286,10 +293,14 @@ export function SolverGrid({ language }: { language: Language }) {
                 <div className="gto-cells">
                   {band.hands.map((hand) => {
                     const mix = mixFor(hand);
-                    const total = Math.max(mix.call + mix.value + mix.bluff, 0.0001);
-                    const call = (mix.call / total) * 100;
-                    const value = (mix.value / total) * 100;
-                    const bluff = (mix.bluff / total) * 100;
+                    const total = Math.max(mix.call + mix.bluff + mix.thin + mix.strong, 0.0001);
+                    const segments = [
+                      { key: 'call', pct: (mix.call / total) * 100, colour: CHALLENGE },
+                      { key: 'bluff', pct: (mix.bluff / total) * 100, colour: BLUFF },
+                      { key: 'thin', pct: (mix.thin / total) * 100, colour: VALUE_THIN },
+                      { key: 'strong', pct: (mix.strong / total) * 100, colour: VALUE_STRONG },
+                    ];
+                    let offset = 0;
                     return (
                       <button
                         key={hand}
@@ -299,9 +310,18 @@ export function SolverGrid({ language }: { language: Language }) {
                         aria-pressed={hand === selected}
                         onClick={() => setSelected(hand)}
                       >
-                        <i style={{ left: 0, width: `${call}%`, background: '#e94a3c' }} />
-                        <i style={{ left: `${call}%`, width: `${value}%`, background: '#4f9a7d' }} />
-                        <i style={{ left: `${call + value}%`, width: `${bluff}%`, background: '#d9a441' }} />
+                        {segments.map((segment) => {
+                          const left = offset;
+                          offset += segment.pct;
+                          // A 2px gap keeps thin adjacent segments from blurring together.
+                          if (segment.pct <= 0) return null;
+                          return (
+                            <i
+                              key={segment.key}
+                              style={{ left: `${left}%`, width: `calc(${segment.pct}% - 2px)`, background: segment.colour }}
+                            />
+                          );
+                        })}
                         <span>{hand}</span>
                       </button>
                     );
@@ -311,9 +331,10 @@ export function SolverGrid({ language }: { language: Language }) {
             ))}
           </div>
           <div className="gto-legend">
-            <span><em style={{ background: '#e94a3c' }} />{t.legendCall}</span>
-            <span><em style={{ background: '#4f9a7d' }} />{t.legendValue}</span>
-            <span><em style={{ background: '#d9a441' }} />{t.legendBluff}</span>
+            <span><em style={{ background: CHALLENGE }} />{t.legendCall}</span>
+            <span><em style={{ background: BLUFF }} />{t.legendBluff}</span>
+            <span><em style={{ background: VALUE_THIN }} />{t.legendThin}</span>
+            <span><em style={{ background: VALUE_STRONG }} />{t.legendStrong}</span>
             <small>{t.legendNote}</small>
           </div>
         </div>
@@ -331,7 +352,7 @@ export function SolverGrid({ language }: { language: Language }) {
               {detail.map((entry) => {
                 const bid = entry.action === 'CALL' ? null : parseBid(entry.action);
                 const held = bid ? support(selected, bid.face, bid.zhai) : 0;
-                const colour = !bid ? '#e94a3c' : held === 0 ? '#d9a441' : '#4f9a7d';
+                const colour = bid ? raiseColour(held) : CHALLENGE;
                 return (
                   <div className="gto-act" key={entry.action}>
                     <span className="gto-act-label">
