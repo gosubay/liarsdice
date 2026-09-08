@@ -145,21 +145,41 @@ The unifying rule for this bot, and the answer to "why does GTO mix at gap 3":
 - **Bidding** is observed directly. A pure bidding rule *is* readable, so the frequencies in
   the table above are real mixes and must stay mixed.
 
-### Zhai openings — why there are none
+### Zhai openings — the paper case, and why it was wrong
 
-Every zhai opening is worse than `3 × sixes` on both axes. Truth probability, opened blind:
+**Superseded 2026-09-08. Read the correction.** The original argument compared truth
+probability at the opening:
 
 | Opening | P(true) |
 |---|---:|
-| `3 × sixes` wild | **70.1%** |
+| `3 × sixes` wild | 70.1% |
 | `2 × ones` zhai | 51.5% |
 | `2 × sixes` zhai | 51.5% |
 | `3 × ones` zhai | 22.2% |
 
-`3 × ones` clears 60% only when Medium already holds two ones (16% of hands), which is still
-below the sixes bid. And none of them constrain the opponent the way the free-rung table
-does. Galvin's "I don't really play zhai" is correct at the opening; the cost of the habit is
-paid later in the round, not here.
+and concluded that no zhai opening is worth having. **Truth probability turned out to be the
+wrong measure.** Measured on round equity against the archetypes in §8, an opening of
+`2 × (a face you hold twice)` zhai beats `3 × sixes` decisively:
+
+| Metric | `3 × sixes` wild | low zhai on a pair |
+|---|---:|---:|
+| Round win rate as the opener, vs the Gap Student | 42.6% | **54.1%** |
+| Mean human win rate against a Medium using it | 50.5% | **45.7%** |
+| Head to head as openings | 38.8% | **61.2%** |
+
+**Why.** The opening floor is **2 for zhai and 3 for wild**, and that one quantity is
+everything. Holding a pair, `2 × that face` zhai is gap 0 — true from your own five dice
+alone, so it cannot be profitably called. The opponent is forced to raise, and every raise
+is a stretch: `3 × anything` zhai needs three of a face across ten dice at 1/6 (expected
+1.67), and fei needs `4 × anything` wild (expected 3.33). You hand them a forced bad move.
+`3 × sixes` is only ~70% true and its answer, `4 × their best face`, is comfortable.
+
+A wild bid can almost never be opened at gap 0 — that needs 3 support, which is 21% of hands.
+A zhai bid can, on any pair, which is most hands.
+
+**This does not change the shipped bot.** Never-initiate-zhai is a deliberate handicap and
+Medium still lands on its target (§8). It does mean the section above should not be quoted as
+strategy advice, and that the Strategy tab is missing the strongest opening in the game.
 
 ## 2. Facing a bid — challenge
 
@@ -336,4 +356,76 @@ Polarisation is what makes that call unambiguous: if the opener never holds exac
 then "at least one" and "at least two" become the same event, so support 1 and support 2
 collapse to the same 19.6%. The one-six caller stops being close and starts being obviously
 wrong.
+
+## 8. Robustness against human opponents — measured 2026-09-08
+
+Six models of how people actually play, each a common habit taken to its logical end. None
+is a solver. 200,000 seat-swapped rounds per matchup, on a rules engine mirroring
+`app/page.tsx` exactly (opening floors included).
+
+| Archetype | What it does |
+|---|---|
+| Honest Ladder | Bids only what its dice back, climbs one rung, calls when stretched. Never bluffs. |
+| Expected Count | "Ten dice, a third match, so about 3.3." Bids under its estimate, calls above it. |
+| Aggro Bluffer | Pushes quantity, thinks calling is for cowards. |
+| Paranoid Caller | Got burned once; now calls from gap 2. |
+| Gap Student | Has read the Strategy tab. Plays the published GTO gap thresholds and a polarised opening. |
+| Zhai Trapper | The Student, plus opens low zhai — aimed straight at Medium's blind spot. |
+
+### Results — human win %
+
+| Archetype | vs **Medium** | vs Hard |
+|---|---:|---:|
+| Honest Ladder | 51.1 | 46.4 |
+| Expected Count | 51.8 | 48.8 |
+| Aggro Bluffer | **40.5** | 31.5 |
+| Paranoid Caller | 46.4 | 42.9 |
+| Gap Student | **55.7** | 49.8 |
+| Zhai Trapper | **57.4** | 49.3 |
+| mean | **50.5** | 44.8 |
+
+Medium is a coin flip against ordinary play and loses 56–57% to a studied opponent, which is
+the target set in the decision log. It punishes bluffing hardest (40.5%), which is the lesson
+level 2 is meant to teach.
+
+### Which design choices cost what
+
+Human win % averaged over the six archetypes, one change at a time:
+
+| Variant | mean | vs shipped |
+|---|---:|---:|
+| gap-3 call at GTO 43% | 47.9 | −2.6 |
+| gap-2 call at 0% | 48.0 | −2.5 |
+| polarised opening on | 48.6 | −1.9 |
+| no bluff valve | 49.7 | −0.8 |
+| **shipped** | **50.5** | — |
+| can enter zhai from wild | 51.3 | +0.8 |
+| gap-2 call at 50% | 54.6 | +4.1 |
+
+Every deliberate deviation from the solver costs 2–3 points, as intended. Two findings worth
+keeping: **letting Medium enter zhai makes it worse, not better** — the zhai handicap is not
+where its losses come from; and the 50% gap-2 call that was cut in review would have cost
+4.1 points, confirming that call.
+
+### The ladder
+
+| Matchup | Result |
+|---|---|
+| Medium beats Easy | 85.0% |
+| Hard beats Easy | 85.2% |
+| **Hard beats Medium** | **52.9%** |
+
+**Flagged: the top two rungs are nearly the same bot.** The target band was 58–66%. Hard falls
+off-book on 2.5% of decisions and is only 49.8% against the Gap Student, so the compression is
+Hard being weaker than advertised rather than Medium being too strong. Fixing that means
+revisiting the solve (see the known gaps in `HANDOFF.md`), not weakening Medium.
+
+(These numbers are not comparable to the 76.2% in `HANDOFF.md`; that came from the simpler
+`simulation/` engine, which fixes the opening quantity at three and has no zhai/ones floors.)
+
+### What this does not measure
+
+The archetypes are fixed habits. They do not adapt, tilt, read a pattern over fifty rounds, or
+notice that Medium opens the identical bid every time. A real opponent will find that faster
+than any of them. Treat these as a floor on how beatable Medium is, not a ceiling.
 
