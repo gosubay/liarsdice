@@ -132,7 +132,7 @@ const solverCopy = {
     legendNoteOrder: '252 种牌型由小到大排列。想查自己手上那一手，用这个排法最快。',
     arrange: '排列方式',
     arrangeNames: { wilds: '万能一点', shape: '牌型', order: '顺序' },
-    shapeRow: { quints: '五同', quads: '四同', boat: '葫芦', trips: '三条', twopair: '两对', pair: '一对', straight: '顺子' },
+    shapeRow: { quints: '五条', quads: '四条', boat: '葫芦', trips: '三条', twopair: '两对', pair: '一对', straight: '顺子' },
     handsWord: '种',
     orderLabel: '由小到大',
     caveat: '求解预览，非最终版。此策略把完整叫骰历史压缩成当前叫骰，数量上限为七，且不含由普通叫骰转斋与飞。可作强力参考，但非定论。',

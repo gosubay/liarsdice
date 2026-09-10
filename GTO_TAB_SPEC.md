@@ -78,13 +78,13 @@ The seven shapes partition all 252 hands exactly:
 
 | Shape | Hands |
 |---|---|
-| Quints `66666` | 6 |
-| Quads `14444` | 30 |
-| Full house `44466` | 30 |
-| Trips `33345` | 60 |
-| Two pair `22335` | 60 |
-| One pair `24566` | 60 |
-| Straight `23456` | 6 |
+| Quints `66666` 五条 | 6 |
+| Quads `14444` 四条 | 30 |
+| Full house `44466` 葫芦 | 30 |
+| Trips `33345` 三条 | 60 |
+| Two pair `22335` 两对 | 60 |
+| One pair `24566` 一对 | 60 |
+| Straight `23456` 顺子 | 6 |
 
 All six rainbow hands are straights, so there is no high-card bucket.
 
