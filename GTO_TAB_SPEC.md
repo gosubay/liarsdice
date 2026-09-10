@@ -59,6 +59,55 @@ The grid is the product's main idea, and its ordering is load-bearing:
    the same "strong in the corner, weak away from it" read as a poker preflop chart.
 3. Rows wrap at **14 columns**.
 
+## Arrangement modes — added 2026-09-11
+
+An **Arrange by** segmented control sits directly above the grid (with the grid, not
+with the bid controls, because it changes the grid). Three modes, default **Wild ones**.
+Colours, cells and the selection behave identically in all three — only the grouping
+and the order change. Rows still wrap at 14 columns everywhere.
+
+| Mode | Grouping | Band order | Why it exists |
+|---|---|---|---|
+| **Wild ones** (default) | 0–5 wild ones, sizes 126 / 70 / 35 / 15 / 5 / 1 | most wilds last | Position on the grid = strength. The poker-preflop-chart read |
+| **Shape** | poker shape of the dice as rolled | strongest shape first | Reveals the solver's bluff and raise patterns across wild-count bands |
+| **Order** | one band, all 252 | ascending | Lookup: find the hand you are actually holding |
+
+### Shape mode
+
+The seven shapes partition all 252 hands exactly:
+
+| Shape | Hands |
+|---|---|
+| Quints `66666` | 6 |
+| Quads `14444` | 30 |
+| Full house `44466` | 30 |
+| Trips `33345` | 60 |
+| Two pair `22335` | 60 |
+| One pair `24566` | 60 |
+| Straight `23456` | 6 |
+
+All six rainbow hands are straights, so there is no high-card bucket.
+
+**Wild ones are deliberately NOT folded into the shape name.** The name describes the
+dice as rolled, so `11223` is filed under Two pair even though it plays as four twos.
+This was decided 2026-09-11 (option (a) of two): the familiar poker vocabulary is what
+makes the mode readable at a glance, and the lie is neutralised two ways —
+
+1. The legend says so in both languages: "The shape name ignores wild ones — 11223 is
+   listed as two pair, but it plays as four twos."
+2. **Within a band, hands sort by `effectiveTop` descending** — the largest number of a
+   single face the hand can actually show with wilds counted in. Ties fall back to the
+   policy's own display order, which already puts sixes-heavy hands first. So Two pair
+   opens on `11566` (effectively four sixes), and strength still reads left to right.
+
+The rejected alternative was categorising by `effectiveTop` itself (buckets of
+26 / 70 / 100 / 55 / 1). More correct, but it is Mode 1 wearing a different hat.
+
+All of this lives in `app/solver.tsx` — `SHAPES`, `SHAPE_BY_SIGNATURE`, `shapeOf`,
+`effectiveTop`, and the `bands` memo, which emits `{ key, lead, sub, hands }` for every
+mode. The label styling for the two named modes is `.gto-band-label-name` in
+`app/globals.css`.
+
 ## Colour coding
 
 Colours live in `app/palette.ts`, mirrored as CSS tokens in `app/globals.css`.

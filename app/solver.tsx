@@ -10,6 +10,50 @@ type Language = 'en' | 'zh';
 const QUANTITIES = [0, 2, 3, 4, 5, 6, 7];
 const FACES = [1, 2, 3, 4, 5, 6];
 
+type Arrange = 'wilds' | 'shape' | 'order';
+const ARRANGES: Arrange[] = ['wilds', 'shape', 'order'];
+
+// Poker-style shapes, strongest first. They partition all 252 hands: 6 / 30 / 30 /
+// 60 / 60 / 60 / 6. Wild ones are deliberately NOT folded into the shape name — the
+// name describes the dice as rolled, so 11223 is listed as a two pair even though it
+// plays as four twos. The legend says so, and inside a band hands are sorted by what
+// they are really worth, so the honest strength still reads left to right.
+const SHAPES = ['quints', 'quads', 'boat', 'trips', 'twopair', 'pair', 'straight'] as const;
+type Shape = (typeof SHAPES)[number];
+
+const SHAPE_BY_SIGNATURE: Record<string, Shape> = {
+  '5': 'quints',
+  '41': 'quads',
+  '32': 'boat',
+  '311': 'trips',
+  '221': 'twopair',
+  '2111': 'pair',
+  '11111': 'straight',
+};
+
+function counts(hand: string) {
+  const out = new Map<number, number>();
+  for (const char of hand) {
+    const die = Number(char);
+    out.set(die, (out.get(die) ?? 0) + 1);
+  }
+  return out;
+}
+
+function shapeOf(hand: string): Shape {
+  const signature = [...counts(hand).values()].sort((a, b) => b - a).join('');
+  return SHAPE_BY_SIGNATURE[signature] ?? 'straight';
+}
+
+// How many of a single face the hand can actually show, wild ones counted in.
+function effectiveTop(hand: string) {
+  const c = counts(hand);
+  const wilds = c.get(1) ?? 0;
+  let best = wilds;
+  for (let f = 2; f <= 6; f += 1) best = Math.max(best, (c.get(f) ?? 0) + wilds);
+  return best;
+}
+
 const solverCopy = {
   en: {
     kicker: 'Solved with counterfactual regret minimisation',
@@ -42,6 +86,13 @@ const solverCopy = {
     legendThin: 'Raise, holding one',
     legendStrong: 'Raise, holding two or more',
     legendNote: 'Rows group hands by wild ones. Within a row, sixes-heavy hands sit left.',
+    legendNoteShape: 'Rows group hands by poker shape. The shape name ignores wild ones — 11223 is listed as two pair, but it plays as four twos. Within a row, the genuinely strongest hands sit left.',
+    legendNoteOrder: 'All 252 hands in ascending order. Use this one to find the hand you are actually holding.',
+    arrange: 'Arrange by',
+    arrangeNames: { wilds: 'Wild ones', shape: 'Shape', order: 'Order' },
+    shapeRow: { quints: 'Quints', quads: 'Quads', boat: 'Full house', trips: 'Trips', twopair: 'Two pair', pair: 'One pair', straight: 'Straight' },
+    handsWord: 'hands',
+    orderLabel: 'ascending',
     caveat: 'Solver preview, not final. This policy folds the whole bid history into just the current bid, caps quantity at seven, and contains no zhai entry from a normal bid and no fei break-out. Treat it as strong guidance, not gospel.',
     loading: 'Loading solved strategy…',
     support: 'Matching dice you hold',
@@ -77,6 +128,13 @@ const solverCopy = {
     legendThin: '加叫到只有一粒的点数',
     legendStrong: '加叫到有两粒以上的点数',
     legendNote: '每一行按万能一点的数量分组。同一行内，六点多的牌型排在左边。',
+    legendNoteShape: '每一行按牌型分组。牌型名称不把万能一点算进去 — 11223 名义上是两对，实际打起来是四粒二点。同一行内，真正强的牌排在左边。',
+    legendNoteOrder: '252 种牌型由小到大排列。想查自己手上那一手，用这个排法最快。',
+    arrange: '排列方式',
+    arrangeNames: { wilds: '万能一点', shape: '牌型', order: '顺序' },
+    shapeRow: { quints: '五同', quads: '四同', boat: '葫芦', trips: '三条', twopair: '两对', pair: '一对', straight: '顺子' },
+    handsWord: '种',
+    orderLabel: '由小到大',
     caveat: '求解预览，非最终版。此策略把完整叫骰历史压缩成当前叫骰，数量上限为七，且不含由普通叫骰转斋与飞。可作强力参考，但非定论。',
     loading: '载入求解策略中…',
     support: '你手上符合的骰数',
@@ -109,6 +167,7 @@ export function SolverGrid({ language }: { language: Language }) {
   const [face, setFace] = useState(6);
   const [zhai, setZhai] = useState(false);
   const [selected, setSelected] = useState('11346');
+  const [arrange, setArrange] = useState<Arrange>('wilds');
   const t = solverCopy[language];
 
   useEffect(() => {
@@ -141,15 +200,37 @@ export function SolverGrid({ language }: { language: Language }) {
   const state = stateFor(quantity, resolved.face, resolved.zhai);
   const effectiveZhai = quantity !== 0 && (resolved.zhai || resolved.face === 1);
 
+  // One shape for all three arrangements: a stack of labelled bands of hands.
   const bands = useMemo(() => {
-    if (!policy) return [] as { wilds: number; hands: string[] }[];
-    const grouped: { wilds: number; hands: string[] }[] = [];
+    type Band = { key: string; lead: string; sub: string; hands: string[] };
+    if (!policy) return [] as Band[];
+
+    if (arrange === 'order') {
+      const hands = [...policy.hands].sort();
+      return [{ key: 'all', lead: String(hands.length), sub: t.orderLabel, hands }];
+    }
+
+    if (arrange === 'shape') {
+      // Ties fall back to the policy's own display order, which already puts
+      // sixes-heavy hands first, so the left-to-right read never goes random.
+      const rank = new Map(policy.hands.map((hand, i) => [hand, i]));
+      const grouped: Band[] = [];
+      for (const shape of SHAPES) {
+        const hands = policy.hands
+          .filter((hand) => shapeOf(hand) === shape)
+          .sort((a, b) => effectiveTop(b) - effectiveTop(a) || (rank.get(a) ?? 0) - (rank.get(b) ?? 0));
+        if (hands.length) grouped.push({ key: shape, lead: t.shapeRow[shape], sub: `${hands.length} ${t.handsWord}`, hands });
+      }
+      return grouped;
+    }
+
+    const grouped: Band[] = [];
     for (let wilds = 0; wilds <= 5; wilds += 1) {
       const hands = policy.hands.filter((hand) => (hand.match(/1/g) ?? []).length === wilds);
-      if (hands.length) grouped.push({ wilds, hands });
+      if (hands.length) grouped.push({ key: `wild${wilds}`, lead: String(wilds), sub: t.wildRow[wilds], hands });
     }
     return grouped;
-  }, [policy]);
+  }, [policy, arrange, t]);
 
   const detail = useMemo(() => {
     if (!policy) return [] as { action: string; p: number }[];
@@ -201,6 +282,7 @@ export function SolverGrid({ language }: { language: Language }) {
   };
 
   const weight = policy.w[policy.hands.indexOf(selected)] ?? 0;
+  const legendNote = arrange === 'shape' ? t.legendNoteShape : arrange === 'order' ? t.legendNoteOrder : t.legendNote;
 
   return (
     <section className="gto-shell">
@@ -286,10 +368,24 @@ export function SolverGrid({ language }: { language: Language }) {
 
       <div className="gto-split">
         <div className="gto-gridbox">
+          <div className="gto-arrange">
+            <span className="gto-control-head">{t.arrange}</span>
+            {ARRANGES.map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                className={`gto-chip gto-chip-sm ${arrange === mode ? 'selected' : ''}`}
+                aria-pressed={arrange === mode}
+                onClick={() => setArrange(mode)}
+              >
+                {t.arrangeNames[mode]}
+              </button>
+            ))}
+          </div>
           <div className="gto-scroller">
             {bands.map((band) => (
-              <div className="gto-band" key={band.wilds}>
-                <div className="gto-band-label"><b>{band.wilds}</b><span>{t.wildRow[band.wilds]}</span></div>
+              <div className="gto-band" key={band.key}>
+                <div className={`gto-band-label ${arrange === 'wilds' ? '' : 'gto-band-label-name'}`}><b>{band.lead}</b><span>{band.sub}</span></div>
                 <div className="gto-cells">
                   {band.hands.map((hand) => {
                     const mix = mixFor(hand);
@@ -335,7 +431,7 @@ export function SolverGrid({ language }: { language: Language }) {
             <span><em style={{ background: BLUFF }} />{t.legendBluff}</span>
             <span><em style={{ background: VALUE_THIN }} />{t.legendThin}</span>
             <span><em style={{ background: VALUE_STRONG }} />{t.legendStrong}</span>
-            <small>{t.legendNote}</small>
+            <small>{legendNote}</small>
           </div>
         </div>
 

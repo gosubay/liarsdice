@@ -115,10 +115,14 @@ button:disabled { cursor: not-allowed; }
 
 .gto-split { display: grid; grid-template-columns: minmax(0,1fr) 310px; align-items: start; gap: 16px; margin-top: 16px; }
 .gto-gridbox { min-width: 0; border: 1px solid var(--border); border-radius: 20px; background: rgba(20,22,22,.7); padding: 16px; }
+.gto-arrange { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 14px; }
+.gto-arrange .gto-control-head { margin-right: 3px; }
+.gto-chip-sm { min-height: 32px; border-radius: 9px; padding: 0 12px; font-size: 13px; }
 .gto-scroller { min-width: 0; overflow-x: auto; padding-bottom: 4px; }
 .gto-band { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 13px; }
 .gto-band-label { flex: 0 0 66px; padding-top: 3px; color: #6f726d; font-size: 10px; line-height: 1.35; text-align: right; }
 .gto-band-label b { display: block; color: #b9b6af; font-size: 16px; }
+.gto-band-label-name b { font-size: 12.5px; line-height: 1.25; }
 .gto-cells { display: grid; min-width: 700px; flex: 1; grid-template-columns: repeat(14, minmax(0, 1fr)); gap: 2px; }
 .gto-cell { position: relative; overflow: hidden; border: 0; border-radius: 3px; background: rgba(255,255,255,.045); padding: 7px 0 10px; color: #e7e0d5; font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; font-size: 12px; letter-spacing: .04em; cursor: pointer; transition: transform .1s ease; }
 .gto-cell:hover { z-index: 2; transform: translateY(-1px); box-shadow: 0 0 0 1px rgba(255,255,255,.55); }
