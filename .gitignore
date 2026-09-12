@@ -42,3 +42,6 @@ next-env.d.ts
 
 # github pages build
 /dist-pages/
+
+# python
+__pycache__/

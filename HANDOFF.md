@@ -108,26 +108,56 @@ From the shipped policy, weighted by hand frequency:
 
 ## Known gaps in the solve — fix before calling this GTO
 
-The exported policy is a simplified game, not the real one:
+The exported policy is a simplified game, not the real one. Items marked **[fixed by
+solve.py]** are already handled by the in-repo re-solve; they are still wrong in the
+policy currently shipped at `app/gto-policy.json`.
 
 1. No zhai entry from a normal bid (rule 10) and no fei break-out (rule 11). Once the
    auction starts wild it stays wild; once zhai, always zhai. Two half-games.
-2. Quantity capped at 7, not the true 10.
-3. No bid history — an information set is only (hand, current bid, mode).
-4. Only seat P0 exported.
-5. No straight-reroll decision represented.
-6. The solver opens `2 × ones` (3.3% of hands) and `2 × twos zhai` (5.2%), but
-   neither has a facing-state entry, so the Solver tab greys both out at quantity 2
-   and the Hard bot falls back to the heuristic when it faces them. The export has
-   65 states; those two would make 67.
+   Verified: zero mode crossings in 25,749 bid actions. **[fixed by solve.py]**
+2. Quantity capped at 7, not the true 10. **[fixed by solve.py, but see below]**
+3. No bid history — an information set is only (hand, current bid, mode). This one is
+   baked into the shipped file format, where `states` IS the current bid. Removing it
+   means redesigning the Solver tab, not just re-solving. **[still abstracted]**
+4. Only seat P0 exported. **[fixed by solve.py — dropping history also drops the
+   seat, so one policy serves both]**
+5. No straight-reroll decision represented. `solve.py --reroll` can fold it into the
+   hand prior, but the three places that define it disagree: page.tsx offers the
+   button on any five distinct faces, simulation/README.md says a 2-6 straight is
+   re-rolled and a five-face hand holding a 1 is kept, and `prepareHand` in
+   liars-dice.mjs re-rolls repeatedly until the hand is not a straight. **Pick one
+   before solving with it.** **[still open]**
+6. Two reachable states are missing and five impossible ones are present. See
+   "Defects in the shipped solve" in GTO_TAB_SPEC.md — `Q2_F1_ZHAI` alone is 9.6% of
+   rounds, and the `Q*_F1_WILD` states make the Solver tab print illegal advice.
+   **[fixed by solve.py]**
+7. A round is scored +1 / -1. The match score is ignored, so the policy does not know
+   that a round is worth more at 4-4 than at 0-0. **[still abstracted]**
+8. Rarely-reached states are the least trustworthy part of any such solve: 21 of the
+   94 states occur in under 0.01% of rounds, and CFR gives no guarantee off-path.
+   The old solve dodged this by capping quantity at 7. **[inherent]**
+
+## Re-solving
+
+    npm run gto:rebuild            # solve (~10 min) then build app/gto-policy.json
+
+`simulation/solve.py` is CFR+ over the abstracted auction: 252 hands x 95 states,
+3745 edges, numpy, no sampling. Watch **policy drift** in the log rather than the
+iteration count — at 3000 iterations it is 3.7e-4 and still falling slowly; the
+opener's edge settles around +0.03. It self-checks the state list against the rules
+before writing, and writes the same intermediate format the old MCCFR solve used, so
+`build-gto-policy.mjs` and the whole app need no change.
+
+Before shipping a new solve: `QUANTITIES` in app/solver.tsx is `[0, 2, 3, 4, 5, 6, 7]`,
+so quantities 8-10 will not be selectable until that list is extended. And the file
+grows — 95 states instead of 65 means roughly 850 KB raw against today's 578 KB.
 
 ## Next steps
 
-1. Re-solve with zhai entry, fei, and quantity to 10 in the action set. Keep the same
-   export format so the UI needs no change — just re-run `npm run gto:build`.
-2. Re-solve, then swap the policy in with `npm run gto:build` — the Hard bot picks it
+1. Decide the straight-reroll rule (gap 5), then re-solve with it.
+2. Re-solve and swap the policy in with `npm run gto:rebuild` — the Hard bot picks it
    up with no code change. Two difficulty levels is settled; do not add a third.
-3. Then V2 (2–6 players) and V3 (netplay), per `ASTRA_AI_STRATEGY_HANDOFF.md`.
+3. Then V2 (2-6 players) and V3 (netplay), per `ASTRA_AI_STRATEGY_HANDOFF.md`.
 
 ## Open rule questions (unchanged, still blocking a full solve)
 

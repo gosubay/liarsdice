@@ -27,7 +27,13 @@ possible five-dice hands.
 ## Data
 
 - Source: MCCFR average policy solved by Gemini 3.1 Pro, kept at
-  `simulation/solves/mccfr-average-policy.json` (4.07 MB).
+  `simulation/solves/mccfr-average-policy.json` (4.07 MB). **This solve has two
+  state-list defects — see "Defects in the shipped solve" below.**
+- Re-solve in-repo with `simulation/solve.py` (CFR+, numpy, ~10 min at 3000
+  iterations), which writes `simulation/solves/cfr-average-policy.json` in the same
+  intermediate format. `npm run gto:rebuild` solves and builds in one step. That
+  script derives the state list from `bidIsLegal` in app/page.tsx rather than
+  hand-listing it, so the defects below cannot recur.
 - Shipped file: `app/gto-policy.json` (~578 KB raw, ~94 KB gzipped), imported with
   `?url` and fetched at runtime so it stays out of the initial JS bundle.
 - Regenerate with `npm run gto:build` (`simulation/build-gto-policy.mjs`).
@@ -47,6 +53,31 @@ Format:
 
 - Probabilities are per-mille integers. Anything below 0.5% is dropped at build time.
 - `Q0_F0_WILD` is the opening decision (nobody has bid).
+
+## Defects in the shipped solve — found 2026-09-12
+
+The shipped `app/gto-policy.json` has 65 states. Enumerating what the live rules
+actually allow gives 95 (94 bids plus the opening). The shipped list is wrong in
+both directions:
+
+1. **Two real states are missing.** `Q2_F1_ZHAI` (2 x ones) and `Q2_F2_ZHAI`
+   (2 x twos zhai) have no entry, even though the solver opens with those bids on
+   3.3% and 5.2% of hands. `Q2_F1_ZHAI` is the **6th most common spot in the
+   game — 9.6% of rounds**. The Solver tab greys both out at quantity 2 and the
+   Hard bot falls back to the heuristic when it faces them.
+2. **Five impossible states are present.** `Q3_F1_WILD` through `Q7_F1_WILD`
+   describe a bid on ones with ones wild, which the rules do not allow — a bid on
+   ones is always zhai. They are not dead weight: `stateFor()` in solver.tsx will
+   land on them, so picking quantity 3 and face ones with the Wild chip active
+   shows the label "3 x ones zhai" over `Q3_F1_WILD` data, which recommends wild
+   raises that are illegal answers to a zhai bid. Verified live 2026-09-12.
+
+65 = 62 reachable-at-cap-7 - 2 missing + 5 impossible. Both defects disappear when
+the policy is rebuilt from `simulation/solve.py`.
+
+Note: `QUANTITIES` in app/solver.tsx is hardcoded to `[0, 2, 3, 4, 5, 6, 7]`. A
+solve that goes past quantity 7 needs that list extended, or derived from
+`policy.states`, or the extra states are simply unreachable in the UI.
 
 ## Hand ordering — do not change casually
 

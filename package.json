@@ -15,7 +15,9 @@
     "simulate": "node simulation/tournament.mjs",
     "simulate:test": "node simulation/self-test.mjs",
     "simulate:search": "node simulation/parameter-search.mjs",
-    "gto:build": "node simulation/build-gto-policy.mjs simulation/solves/mccfr-average-policy.json"
+    "gto:build": "node simulation/build-gto-policy.mjs simulation/solves/mccfr-average-policy.json",
+    "gto:solve": "python simulation/solve.py",
+    "gto:rebuild": "python simulation/solve.py && node simulation/build-gto-policy.mjs simulation/solves/cfr-average-policy.json"
   },
   "dependencies": {
     "@base-ui/react": "1.7.0",
