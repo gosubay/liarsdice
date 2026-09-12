@@ -116,7 +116,10 @@ The exported policy is a simplified game, not the real one:
 3. No bid history — an information set is only (hand, current bid, mode).
 4. Only seat P0 exported.
 5. No straight-reroll decision represented.
-6. `2 × ones` can be opened but has no facing-state entry.
+6. The solver opens `2 × ones` (3.3% of hands) and `2 × twos zhai` (5.2%), but
+   neither has a facing-state entry, so the Solver tab greys both out at quantity 2
+   and the Hard bot falls back to the heuristic when it faces them. The export has
+   65 states; those two would make 67.
 
 ## Next steps
 
