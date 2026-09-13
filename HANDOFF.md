@@ -140,7 +140,7 @@ policy currently shipped at `app/gto-policy.json`.
 ## Re-solving
 
     python simulation\solve.py --config simulation\solve-config.json
-    node simulationuild-gto-policy.mjs simulation\solves\cfr-average-policy.json
+    node simulation\build-gto-policy.mjs simulation\solves\cfr-average-policy.json
 
 Settings live in `simulation/solve-config.json` (iterations, save points, output path,
 quantity cap, re-roll rule); command-line flags override it, and an unknown key fails
