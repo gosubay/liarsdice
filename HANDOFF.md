@@ -139,18 +139,59 @@ policy currently shipped at `app/gto-policy.json`.
 
 ## Re-solving
 
-    npm run gto:rebuild            # solve (~10 min) then build app/gto-policy.json
+    python simulation\solve.py --config simulation\solve-config.json
+    node simulationuild-gto-policy.mjs simulation\solves\cfr-average-policy.json
+
+Settings live in `simulation/solve-config.json` (iterations, save points, output path,
+quantity cap, re-roll rule); command-line flags override it, and an unknown key fails
+loudly. Ctrl+C once finishes the current iteration and saves; twice quits unsaved.
+Checkpoints go to `simulation/solves/checkpoints/` (gitignored).
 
 `simulation/solve.py` is CFR+ over the abstracted auction: 252 hands x 95 states,
-3745 edges, numpy, no sampling. Watch **policy drift** in the log rather than the
-iteration count — at 3000 iterations it is 3.7e-4 and still falling slowly; the
-opener's edge settles around +0.03. It self-checks the state list against the rules
-before writing, and writes the same intermediate format the old MCCFR solve used, so
-`build-gto-policy.mjs` and the whole app need no change.
+3745 edges, numpy, no sampling, about 0.19 s per iteration on this machine. It
+self-checks the state list against the rules before writing, in the same intermediate
+format the old MCCFR solve used, so `build-gto-policy.mjs` and the app need no change.
+
+`simulation/compare_policies.py A.json B.json` compares two solves exactly: A's
+seat-averaged win rate against B, and how differently they play weighted by how often
+each spot occurs. Identical files give 50.000% / 0.000%.
+
+The committed `simulation/solves/cfr-average-policy.json` is the 24,000-iteration run.
+
+### How many iterations — measured 2026-09-13
+
+Every checkpoint compared against a 24,000-iteration reference (83 min):
+
+| Iterations | Time | Win rate vs 24k | Plays differently |
+|---|---|---|---|
+| 250 | 47 s | 49.44% | 29.6% |
+| 1,000 | 3 min | 49.96% | 25.4% |
+| 3,000 | 9 min | 49.89% | 15.5% |
+| 6,000 | 19 min | 49.95% | 11.4% |
+| 12,000 | 37 min | 50.02% | 7.5% |
+| old shipped MCCFR, 1M samples | overnight | **46.61%** | 53.4% |
+
+Read it this way:
+
+- **Playing strength is settled by ~1,000 iterations.** Past that, no checkpoint is more
+  than 0.12 points from the reference — noise.
+- **The percentages in the Solver grid keep settling much longer.** The remaining
+  differences are mostly the solver shuffling between bids that are worth the same, so
+  they do not change results, but they do change the numbers a person reads. Disagreement
+  roughly halves each time iterations quadruple.
+- **Recommendation: 10,000 (~31 min)** for any policy that ships; an overnight run of
+  ~150,000 only if the grid's exact percentages matter.
+- The old shipped policy loses 46.6 to 53.4 to the reference. Part of that is its missing
+  states being played at random in the comparison (the app falls back to the heuristic
+  bot instead), so treat the size of the gap as an upper bound.
+
+Caveat: this measures each run against a longer run, not against a perfect exploiter.
+Exact exploitability is not computable in this abstraction, because dropping bid history
+breaks perfect recall.
 
 Before shipping a new solve: `QUANTITIES` in app/solver.tsx is `[0, 2, 3, 4, 5, 6, 7]`,
-so quantities 8-10 will not be selectable until that list is extended. And the file
-grows — 95 states instead of 65 means roughly 850 KB raw against today's 578 KB.
+so quantities 8-10 will not be selectable until that list is extended. The built file is
+734 KB against today's 578 KB.
 
 ## Next steps
 

@@ -3,10 +3,14 @@
 Solve the KTV Liar's Dice auction with CFR+ and write the average policy in the
 format `simulation/build-gto-policy.mjs` already consumes.
 
-    python simulation/solve.py --iters 800
+    python simulation/solve.py --config simulation/solve-config.json
     node simulation/build-gto-policy.mjs simulation/solves/cfr-average-policy.json
 
 or both at once:  npm run gto:rebuild
+
+Every setting can live in the JSON config (see simulation/solve-config.json) or be
+passed on the command line; the command line wins. Ctrl+C once finishes the current
+iteration and saves what it has; Ctrl+C twice quits without saving.
 
 WHY THIS FILE EXISTS
 --------------------
@@ -52,6 +56,7 @@ import argparse
 import itertools
 import json
 import os
+import signal
 import sys
 import time
 from collections import Counter
@@ -210,7 +215,8 @@ def regret_match(regret: np.ndarray) -> np.ndarray:
     return np.where(total > 0, positive / np.maximum(total, 1e-300), 1.0 / n)
 
 
-def solve(iters: int, max_quantity: int, reroll: str, report_every: int):
+def solve(iters: int, max_quantity: int, reroll: str, report_every: int,
+          checkpoints=(), on_checkpoint=None, should_stop=lambda: False):
     hands, raw_weights = all_hands()
     weights = apply_reroll(hands, raw_weights, reroll)
     weights = weights / weights.sum()
@@ -242,6 +248,8 @@ def solve(iters: int, max_quantity: int, reroll: str, report_every: int):
 
     started = time.time()
     previous = None
+    completed = 0
+    checkpoints = set(checkpoints)
     for t in range(1, iters + 1):
         sigma = [regret_match(r) for r in regret]
         open_sigma = regret_match(open_regret)
@@ -297,7 +305,14 @@ def solve(iters: int, max_quantity: int, reroll: str, report_every: int):
             print(f"  iter {t:>5}/{iters}  opener EV {ev:+.4f}  "
                   f"policy drift {drift:.2e}  {time.time() - started:6.1f}s", flush=True)
 
-    return hands, weights, bids, children, opening, average, open_average
+        completed = t
+        if on_checkpoint and t in checkpoints and t != iters:
+            on_checkpoint(t, hands, bids, children, opening, average, open_average)
+        if should_stop():
+            print(f"  stopped early after iteration {t}", flush=True)
+            break
+
+    return hands, weights, bids, children, opening, average, open_average, completed
 
 
 # --------------------------------------------------------------------------- #
@@ -355,32 +370,93 @@ def self_check(out, hands, bids, max_quantity):
           f"= {len(out)} rows, quantity capped at {max_quantity}")
 
 
+DEFAULTS = {
+    "iters": 3000,
+    "max_quantity": TOTAL_DICE,
+    "reroll": "none",
+    "out": "simulation/solves/cfr-average-policy.json",
+    "report_every": 250,
+    "checkpoints": [],
+    "checkpoint_dir": "simulation/solves/checkpoints",
+}
+
+
+def load_config(path):
+    """Read a JSON settings file. Keys starting with an underscore are notes and are
+    ignored; anything else must be a known setting, so a typo fails loudly."""
+    with open(path, encoding="utf-8-sig") as handle:
+        raw = json.load(handle)
+    config = {k: v for k, v in raw.items() if not k.startswith("_")}
+    unknown = set(config) - set(DEFAULTS)
+    if unknown:
+        sys.exit(f"{path}: unknown setting(s) {sorted(unknown)}; "
+                 f"known settings are {sorted(DEFAULTS)}")
+    return config
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--iters", type=int, default=800,
-                        help="CFR+ iterations (default 800; more is closer to equilibrium)")
-    parser.add_argument("--max-quantity", type=int, default=TOTAL_DICE,
-                        help=f"highest quantity in the action set (default {TOTAL_DICE}; "
-                             "the old solve used 7)")
-    parser.add_argument("--reroll", choices=["none", "no-one", "all"], default="none",
+    parser.add_argument("--config", help="JSON settings file, e.g. simulation/solve-config.json")
+    parser.add_argument("--iters", type=int,
+                        help="CFR+ iterations (default 3000)")
+    parser.add_argument("--max-quantity", type=int,
+                        help=f"highest quantity in the action set (default {TOTAL_DICE})")
+    parser.add_argument("--reroll", choices=["none", "no-one", "all"],
                         help="fold a straight re-roll into the hand prior (default none)")
-    parser.add_argument("--out", default="simulation/solves/cfr-average-policy.json")
-    parser.add_argument("--report-every", type=int, default=25)
-    args = parser.parse_args()
+    parser.add_argument("--out", help="where the final policy is written")
+    parser.add_argument("--report-every", type=int, help="print progress every N iterations")
+    parser.add_argument("--checkpoints", type=lambda v: [int(x) for x in v.split(",") if x],
+                        help="comma-separated iterations to also save, e.g. 1000,5000,20000")
+    parser.add_argument("--checkpoint-dir", help="where checkpoint policies are written")
+    cli = parser.parse_args()
 
-    if args.reroll != "none":
+    settings = dict(DEFAULTS)
+    if cli.config:
+        settings.update(load_config(cli.config))
+    for key in DEFAULTS:
+        value = getattr(cli, key)
+        if value is not None:
+            settings[key] = value
+    if settings["reroll"] not in ("none", "no-one", "all"):
+        sys.exit(f"reroll must be none, no-one or all, not {settings['reroll']!r}")
+    print("settings: " + ", ".join(f"{k}={settings[k]}" for k in DEFAULTS), flush=True)
+
+    if settings["reroll"] != "none":
         print("NOTE: --reroll changes the hand prior, but build-gto-policy.mjs still\n"
               "      computes the shipped `w` weights from the raw multinomial. Update\n"
               "      weightOf() there to match before shipping such a solve.\n")
 
-    result = solve(args.iters, args.max_quantity, args.reroll, args.report_every)
-    hands, _weights, bids, children, opening, average, open_average = result
-    out = export(args.out, hands, bids, children, opening, average, open_average)
-    self_check(out, hands, bids, args.max_quantity)
-    size = os.path.getsize(args.out) / 1024 / 1024
-    print(f"wrote {args.out}  ({size:.2f} MB)")
-    print(f"next:  node simulation/build-gto-policy.mjs {args.out}")
+    stop = {"requested": False}
+
+    def request_stop(_signum, _frame):
+        if stop["requested"]:
+            raise KeyboardInterrupt
+        stop["requested"] = True
+        print("\nCtrl+C: finishing this iteration, then saving. "
+              "Press Ctrl+C again to quit without saving.", flush=True)
+
+    signal.signal(signal.SIGINT, request_stop)
+    if hasattr(signal, "SIGBREAK"):                  # Ctrl+Break on Windows
+        signal.signal(signal.SIGBREAK, request_stop)
+
+    def save_checkpoint(t, hands, bids, children, opening, average, open_average):
+        base = os.path.splitext(os.path.basename(settings["out"]))[0]
+        path = os.path.join(settings["checkpoint_dir"], f"{base}-iter{t}.json")
+        export(path, hands, bids, children, opening, average, open_average)
+        print(f"  checkpoint saved: {path}", flush=True)
+
+    result = solve(settings["iters"], settings["max_quantity"], settings["reroll"],
+                   settings["report_every"], settings["checkpoints"], save_checkpoint,
+                   lambda: stop["requested"])
+    hands, _weights, bids, children, opening, average, open_average, completed = result
+    if completed == 0:
+        sys.exit("stopped before the first iteration finished; nothing written")
+    out = export(settings["out"], hands, bids, children, opening, average, open_average)
+    self_check(out, hands, bids, settings["max_quantity"])
+    size = os.path.getsize(settings["out"]) / 1024 / 1024
+    print(f"wrote {settings['out']}  ({size:.2f} MB, {completed} iterations)")
+    print(f"next:  node simulation/build-gto-policy.mjs {settings['out']}")
 
 
 if __name__ == "__main__":

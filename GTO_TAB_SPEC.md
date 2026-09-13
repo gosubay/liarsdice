@@ -29,9 +29,10 @@ possible five-dice hands.
 - Source: MCCFR average policy solved by Gemini 3.1 Pro, kept at
   `simulation/solves/mccfr-average-policy.json` (4.07 MB). **This solve has two
   state-list defects — see "Defects in the shipped solve" below.**
-- Re-solve in-repo with `simulation/solve.py` (CFR+, numpy, ~10 min at 3000
-  iterations), which writes `simulation/solves/cfr-average-policy.json` in the same
-  intermediate format. `npm run gto:rebuild` solves and builds in one step. That
+- Re-solve in-repo with `simulation/solve.py` (CFR+, numpy, ~0.19 s per iteration,
+  settings in `simulation/solve-config.json`), which writes
+  `simulation/solves/cfr-average-policy.json` in the same intermediate format. How many
+  iterations are enough is measured in HANDOFF.md — 10,000 for anything that ships. `npm run gto:rebuild` solves and builds in one step. That
   script derives the state list from `bidIsLegal` in app/page.tsx rather than
   hand-listing it, so the defects below cannot recur.
 - Shipped file: `app/gto-policy.json` (~578 KB raw, ~94 KB gzipped), imported with

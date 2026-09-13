@@ -1,0 +1,23 @@
+{
+  "_how_to_run": "In PowerShell, from the project folder: python simulation\\solve.py --config simulation\\solve-config.json",
+  "_how_to_stop": "Ctrl+C once finishes the current iteration and saves. Ctrl+C twice quits without saving.",
+
+  "_iters": "How many CFR+ iterations. About 0.2 seconds each. See HANDOFF.md 'How many iterations' for what each amount buys.",
+  "iters": 10000,
+
+  "_report_every": "Print a progress line every this many iterations.",
+  "report_every": 500,
+
+  "_checkpoints": "Also save a copy of the policy at these iterations, so a crash or a stop still leaves a usable file. [] for none.",
+  "checkpoints": [2500, 5000, 7500],
+  "checkpoint_dir": "simulation/solves/checkpoints",
+
+  "_out": "Where the finished policy is written. Feed this to build-gto-policy.mjs.",
+  "out": "simulation/solves/cfr-average-policy.json",
+
+  "_max_quantity": "Highest bid quantity solved. 10 is every die on the table.",
+  "max_quantity": 10,
+
+  "_reroll": "Straight re-roll rule folded into the dice odds: none, no-one, or all. Leave on none until the rule is decided (HANDOFF.md gap 5).",
+  "reroll": "none"
+}
