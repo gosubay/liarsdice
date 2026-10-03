@@ -1,6 +1,6 @@
 # HANDOFF — Liar's Dice (大话骰)
 
-Last updated: 2026-09-11 (SGT)
+Last updated: 2026-10-03 (SGT)
 
 ## What this project is
 
@@ -34,7 +34,7 @@ There is **no separate `index.html` game**. The two-player game built with Codex
 
 ## Current state
 
-Six top-level tabs, in this order — the order is a learning path and is deliberate:
+Seven top-level tabs, in this order — the order is a learning path and is deliberate:
 
 1. **Play** — the game, with an Easy / Medium / Hard bot selector and a Start game button.
    Hard plays the CFR-solved policy and beats Easy 76.2% to 23.8% over 200,000
@@ -74,7 +74,15 @@ Six top-level tabs, in this order — the order is a learning path and is delibe
    The board ships seeded with one record (Galvin, 100–100, 8/9/2026) so it is never empty;
    `liarsdice.leaderboard.seeded` stops it coming back if the player clears it.
 
-See `GTO_TAB_SPEC.md` for the full spec of all five.
+7. **Cup** — added 2026-10-03. A dice cup for people playing each other in person with
+   no dice: everyone opens it on their own phone, shakes, and bids out loud. No bot, no
+   bidding, no scoring. Shake keeps the cup down, Lift cup / Cover show and hide the
+   dice, and Shake again needs a second tap so a hand cannot be re-rolled by accident.
+   Lives in `app/cup.tsx`; **`CUP_TAB_SPEC.md`** is the authority. Sits last because it
+   is a utility, not a step on the learning path. On phones the tab bar now wraps onto
+   two rows so all seven tabs can be tapped.
+
+See `GTO_TAB_SPEC.md` for the full spec of the first five.
 
 The quincunx is what lets both players sit **side by side on a phone** — they no
 longer stack at 640px.

@@ -31,13 +31,14 @@ import { StrategySheet } from './strategy';
 import { loadPolicy, samplePolicyMove, type Policy, type PolicyMove } from './policy';
 import { mediumMove, mediumShouldReroll } from './medium-bot';
 import { LeaderboardPage } from './leaderboard-page';
+import { CupPage } from './cup';
 import { WINS_TARGET, useLeaderboard } from './leaderboard';
 
 type Language = 'en' | 'zh';
 type MatchMode = 'five' | 'unlimited';
 type Player = 'human' | 'ai';
 type Difficulty = 'easy' | 'medium' | 'hard';
-type Tab = 'play' | 'rules' | 'math' | 'strategy' | 'solver' | 'leaderboard';
+type Tab = 'play' | 'rules' | 'math' | 'strategy' | 'solver' | 'leaderboard' | 'cup';
 type Phase = 'playing' | 'revealed' | 'finished';
 type Bid = { quantity: number; face: number; zhai: boolean };
 type Result = { loser: Player; actual: number; bidder: Player; challenger: Player };
@@ -59,7 +60,7 @@ type WebMCPDocument = Document & {
 };
 
 const DIFFICULTIES: Difficulty[] = ['easy', 'medium', 'hard'];
-const TABS: Tab[] = ['play', 'rules', 'math', 'strategy', 'solver', 'leaderboard'];
+const TABS: Tab[] = ['play', 'rules', 'math', 'strategy', 'solver', 'leaderboard', 'cup'];
 
 // The opening bid must clear one of these floors. Later bids only have to beat the
 // bid before them, so the floor never binds again. Mirrored in app/rules.tsx.
@@ -94,7 +95,7 @@ const copy = {
     fei: 'Fei · 飞', normal: 'Wild', rulesTitle: 'Table rules', close: 'Close',
     rules: ['Each player always rolls five dice.', 'On a normal bid, ones are wild.', 'Bids rank 1 › 6 › 5 › 4 › 3 › 2.', 'A bid on ones is automatically zhai.', 'In zhai, wild ones do not count.', 'Break zhai with at least double the quantity.', 'Five different faces may be re-rolled once.', 'The round loser gains one loss.'],
     starter: 'Round loser starts', setup: 'Match setup', menu: 'Rules',
-    tabPlay: 'Play', tabRules: 'Rules', tabMath: 'Math', tabStrategy: 'GTO Strategy', tabSolver: 'Solver', tabLeaderboard: 'Leaderboard',
+    tabPlay: 'Play', tabRules: 'Rules', tabMath: 'Math', tabStrategy: 'GTO Strategy', tabSolver: 'Solver', tabLeaderboard: 'Leaderboard', tabCup: 'Cup',
     openingFloor: 'Open with at least 3 wild, 2 zhai, or 2 ones.', skipRoll: 'Skip', dieLabel: 'Die showing',
     difficulty: 'Bot difficulty', startGame: 'Start game', opponentWith: (level: string) => `You vs ${level} AI`,
     animationOn: 'Dice animation on', animationOff: 'Dice animation off',
@@ -124,7 +125,7 @@ const copy = {
     fei: '飞', normal: '万能', rulesTitle: '桌面规则', close: '关闭',
     rules: ['每位玩家始终摇五粒骰。', '普通叫骰时，一点可作万能。', '点数顺序为 1 › 6 › 5 › 4 › 3 › 2。', '叫一点自动视为斋。', '斋叫时，一点不作万能。', '破斋必须至少叫双倍数量。', '五个不同点数可选择重摇一次。', '每局输家增加一负。'],
     starter: '输家下一局先叫', setup: '比赛设置', menu: '规则',
-    tabPlay: '对局', tabRules: '规则', tabMath: '算术', tabStrategy: 'GTO 策略', tabSolver: '求解器', tabLeaderboard: '排行榜',
+    tabPlay: '对局', tabRules: '规则', tabMath: '算术', tabStrategy: 'GTO 策略', tabSolver: '求解器', tabLeaderboard: '排行榜', tabCup: '骰盅',
     openingFloor: '开叫至少要三个万能、两个斋，或两个一点。', skipRoll: '跳过', dieLabel: '骰子点数',
     difficulty: '电脑难度', startGame: '开始对局', opponentWith: (level: string) => `你 对 ${level}电脑`,
     animationOn: '开骰动画：开', animationOff: '开骰动画：关',
@@ -367,7 +368,7 @@ export default function Home() {
               aria-pressed={tab === name}
               onClick={() => setTab(name)}
             >
-              {{ play: t.tabPlay, rules: t.tabRules, math: t.tabMath, strategy: t.tabStrategy, solver: t.tabSolver, leaderboard: t.tabLeaderboard }[name]}
+              {{ play: t.tabPlay, rules: t.tabRules, math: t.tabMath, strategy: t.tabStrategy, solver: t.tabSolver, leaderboard: t.tabLeaderboard, cup: t.tabCup }[name]}
             </button>
           ))}
         </nav>
@@ -377,7 +378,9 @@ export default function Home() {
         </div>
       </header>
 
-      {tab === 'leaderboard' ? (
+      {tab === 'cup' ? (
+        <CupPage language={language} />
+      ) : tab === 'leaderboard' ? (
         <LeaderboardPage language={language} />
       ) : tab === 'solver' ? (
         <SolverGrid language={language} />
