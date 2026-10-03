@@ -400,6 +400,10 @@ button:disabled { cursor: not-allowed; }
 .topbar-actions { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
 @media (max-width: 640px) { .topbar-actions .motion-toggle span { display: none; } }
 
+/* ---------- Full screen (touch devices only, see app/fullscreen.ts) ---------- */
+.fullscreen-button { padding: 0 12px; }
+.fullscreen-hint { position: relative; z-index: 20; width: min(100% - 32px, 520px); margin: 0 auto 12px; border: 1px solid var(--border); border-radius: 14px; background: rgba(255,255,255,.05); padding: 10px 14px; color: #d9d6cf; font-size: 13px; line-height: 1.5; text-align: center; }
+
 /* ---------- Medium difficulty tag ---------- */
 /* Amber sits between the neutral Easy tag and the red Hard tag, so the three rungs read
    as a ladder at a glance. Matches --chart-zhai, already validated in app/palette.ts. */

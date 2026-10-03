@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 
@@ -17,8 +17,14 @@ export const metadata: Metadata = {
   description: "Play China KTV-style Liar's Dice against an AI opponent.",
   // The static Pages build links this in static/index.html; the Worker build
   // needs it declared here or the browser falls back to asking for /favicon.ico.
-  icons: { icon: '/favicon.svg' },
+  icons: { icon: '/favicon.svg', apple: '/icon-180.png' },
+  // Add to Home Screen: launches the game full screen. See app/fullscreen.ts.
+  // static/index.html carries the same tags for the Pages build.
+  manifest: '/manifest.webmanifest',
+  appleWebApp: { capable: true, title: "Liar's Dice", statusBarStyle: 'black' },
 };
+
+export const viewport: Viewport = { themeColor: '#0c0d0d' };
 
 export default function RootLayout({
   children,

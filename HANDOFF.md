@@ -91,6 +91,32 @@ Verified working in the static preview on desktop (1280×900) and mobile (375×8
 `npm run build`, `npx tsc --noEmit`, and `npx oxlint app/gto.tsx app/die.tsx` are clean.
 `app/page.tsx` still has two pre-existing a11y lint errors in the rules modal.
 
+## Full screen on phones — added 2026-10-03
+
+A full-screen button sits in the header, left of the language button. Rules:
+
+- **Touch devices only.** Desktop never shows it. It is also hidden once the game has
+  been launched from a home-screen icon, because that is already full screen.
+- **Android and iPad:** the button hides the browser's bars, and tapping again brings
+  them back.
+- **iPhone:** Safari refuses that request for anything but video, so the button instead
+  shows a one-line how-to — Share, then Add to Home Screen. Launched from that icon the
+  game runs full screen. This is an Apple limit, not a bug; do not try to "fix" it.
+- The home-screen install is driven by `public/manifest.webmanifest`, the three
+  `public/icon-*.png` files (rendered from `favicon.svg` on the page's `#0c0d0d`), and
+  the `apple-*` tags. Those tags live in **two** places, one per build path:
+  `static/index.html` (Pages) and `metadata` in `app/layout.tsx` (Cloudflare). Change
+  both together.
+- iPhone status bar style is `black`, so the page starts below the clock. Switching to
+  `black-translucent` would slide the page under the notch and needs safe-area padding.
+- Logic is in `app/fullscreen.ts`. A refused request logs `[fullscreen] … refused` to
+  the browser console.
+
+Verified in the static preview at 375×812 with touch emulation: the button appears, a
+tap asks the browser for full screen, the label flips to Exit, the iPhone hint shows,
+and nothing overflows sideways. The preview pane itself refuses real full screen, so
+the bars actually disappearing has **not** been seen on a physical phone yet.
+
 ## Commands
 
 ```

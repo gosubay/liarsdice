@@ -9,6 +9,8 @@ import {
   Flag,
   Infinity as InfinityIcon,
   Languages,
+  Maximize,
+  Minimize,
   RotateCcw,
   Sparkles,
   Swords,
@@ -23,6 +25,7 @@ import { Die } from './die';
 import { LogoDie } from './logo';
 import { DiceTray, ROLL_MS } from './dice-tray';
 import { useAnimationPref, useSoundPref } from './prefs';
+import { useFullscreen } from './fullscreen';
 import { MathPage } from './math';
 import { RulesPage } from './rules';
 import { SolverGrid } from './solver';
@@ -100,6 +103,8 @@ const copy = {
     difficulty: 'Bot difficulty', startGame: 'Start game', opponentWith: (level: string) => `You vs ${level} AI`,
     animationOn: 'Dice animation on', animationOff: 'Dice animation off',
     soundOn: 'Sound on', soundOff: 'Sound off',
+    fullscreenEnter: 'Full screen', fullscreenExit: 'Exit full screen',
+    fullscreenHint: 'On iPhone, tap Share, then Add to Home Screen. Open the game from that icon and it runs full screen.',
     botLabel: 'Bot',
     easy: 'Easy', easyNote: 'Bids almost at random and challenges on a whim',
     medium: 'Medium', mediumNote: 'Opens on sixes and holds the gap rule, but never plays zhai',
@@ -130,6 +135,8 @@ const copy = {
     difficulty: '电脑难度', startGame: '开始对局', opponentWith: (level: string) => `你 对 ${level}电脑`,
     animationOn: '开骰动画：开', animationOff: '开骰动画：关',
     soundOn: '声音：开', soundOff: '声音：关',
+    fullscreenEnter: '全屏', fullscreenExit: '退出全屏',
+    fullscreenHint: 'iPhone 请点“分享”，再选“添加到主屏幕”。从主屏幕图标打开游戏，即为全屏。',
     botLabel: '电脑',
     easy: '简单', easyNote: '几乎随机叫骰，随兴开骰',
     medium: '中等', mediumNote: '六点开局、守差额法则，但从不叫斋',
@@ -156,6 +163,8 @@ export default function Home() {
   const [difficulty, setDifficulty] = useState<Difficulty>('easy');
   const [animation, setAnimation] = useAnimationPref();
   const [sound, setSound] = useSoundPref();
+  const [fullscreen, toggleFullscreen] = useFullscreen();
+  const [showInstallHint, setShowInstallHint] = useState(false);
   const [policy, setPolicy] = useState<Policy | null>(null);
   const [wentOffBook, setWentOffBook] = useState(false);
   const [screen, setScreen] = useState<'setup' | 'game'>('setup');
@@ -374,9 +383,21 @@ export default function Home() {
         </nav>
         <div className="header-actions">
           {tab === 'play' && screen === 'game' && <button className="icon-button" onClick={() => setShowRules(true)}><CircleHelp size={17} /><span>{t.menu}</span></button>}
+          {fullscreen !== 'none' && (
+            <button
+              className="icon-button fullscreen-button"
+              aria-pressed={fullscreen === 'api-on' || showInstallHint}
+              aria-label={fullscreen === 'api-on' ? t.fullscreenExit : t.fullscreenEnter}
+              title={fullscreen === 'api-on' ? t.fullscreenExit : t.fullscreenEnter}
+              onClick={() => (fullscreen === 'install' ? setShowInstallHint(!showInstallHint) : toggleFullscreen())}
+            >
+              {fullscreen === 'api-on' ? <Minimize size={16} /> : <Maximize size={16} />}
+            </button>
+          )}
           <button className="language-button" onClick={swapLanguage} aria-label={language === 'en' ? 'Switch to Chinese' : '切换到英文'}><Languages size={16} />{language === 'en' ? '中文' : 'EN'}</button>
         </div>
       </header>
+      {fullscreen === 'install' && showInstallHint && <p className="fullscreen-hint" role="status">{t.fullscreenHint}</p>}
 
       {tab === 'cup' ? (
         <CupPage language={language} />
