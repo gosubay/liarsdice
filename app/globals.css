@@ -146,6 +146,7 @@ button:disabled { cursor: not-allowed; }
 .gto-act-label u { position: absolute; top: 0; left: 0; height: 100%; opacity: .4; text-decoration: none; }
 .gto-act-label s { position: relative; color: #ddd8ce; font-size: 12px; text-decoration: none; }
 .gto-act-pct { color: #9a9c97; font-size: 12px; font-variant-numeric: tabular-nums; text-align: right; }
+.gto-more { margin-top: 11px; }
 .gto-bars { display: flex; flex-direction: column; gap: 6px; }
 .gto-bar { display: grid; grid-template-columns: 16px 1fr 40px; align-items: center; gap: 9px; }
 .gto-bar-k { color: #6d706b; font-size: 12px; font-variant-numeric: tabular-nums; text-align: right; }

@@ -1,6 +1,6 @@
 # HANDOFF — Liar's Dice (大话骰)
 
-Last updated: 2026-10-03 (SGT)
+Last updated: 2026-10-13 (SGT)
 
 ## What this project is
 
@@ -65,7 +65,9 @@ Seven top-level tabs, in this order — the order is a learning path and is deli
    above the grid regroups it three ways: **Wild ones** (default), **Shape** (poker
    shapes — quints, quads, full house, trips, two pair, one pair, straight, with the
    shape name ignoring wild ones and the legend saying so), and **Order** (all 252
-   ascending, for looking up the hand you actually hold). See `GTO_TAB_SPEC.md`.
+   ascending, for looking up the hand you actually hold). An **All hands combined** card
+   (added 2026-10-13) sits under "Your hand" and lists every legal move with its total
+   frequency across all 252 hands for the bid that is set. See `GTO_TAB_SPEC.md`.
 6. **Leaderboard** — high scores, with an Easy / Medium / Hard sub-tab each. A run is
    recorded only when the player reaches 100 wins in an **Unlimited** match, at which point
    a modal asks for a name and saves score, win rate and date. Every entry has 100 wins, so

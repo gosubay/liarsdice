@@ -78,6 +78,11 @@ const solverCopy = {
     held: 'you hold',
     zhaiShort: 'zhai',
     noData: 'This hand never faces this bid in the solve.',
+    overall: 'All hands combined',
+    overallNote: 'How often the solver makes each move here, adding up all 252 hands by how often each is rolled. Bars are drawn against the most common move, and coloured by how many of that face the bidder holds. Exact for the opening and the first reply; approximate deeper in the auction.',
+    overallNone: 'The solve has no answer for this bid.',
+    showAll: 'Show all {n} moves',
+    showTop: 'Show top 8 only',
     pocket: 'Challenge rate by your support',
     pocketNote: 'How often the solver challenges this bid, grouped by how many matching dice you hold. This is the part worth memorising.',
     pocketNone: 'Nothing to challenge yet — you are making the opening bid.',
@@ -120,6 +125,11 @@ const solverCopy = {
     held: '手上有',
     zhaiShort: '斋',
     noData: '此牌型在求解中不会面对这个叫骰。',
+    overall: '全部牌型合计',
+    overallNote: '求解器在此局面下各种打法的总频率，按 252 种牌型各自的出现机率加总。条形长度以最常见的打法为基准，颜色显示叫骰者手上有几粒该点数。开局与第一次回应为精确值；叫骰越深越是近似。',
+    overallNone: '求解中没有这个叫骰的对应打法。',
+    showAll: '显示全部 {n} 种打法',
+    showTop: '只显示前 8 种',
     pocket: '按手上符合骰数的开骰率',
     pocketNote: '依你手上符合的骰子数量，统计求解器开骰的频率。这一段最值得背下来。',
     pocketNone: '尚无叫骰可开 — 这一手由你先叫。',
@@ -161,6 +171,22 @@ function parseBid(action: string) {
 const stateFor = (quantity: number, face: number, zhai: boolean) =>
   (quantity === 0 ? 'Q0_F0_WILD' : `Q${quantity}_F${face}_${zhai ? 'ZHAI' : 'WILD'}`);
 
+// How many rows the all-hands card shows before "Show all" is pressed.
+const OVERALL_TOP = 8;
+
+// Mirrors bidIsLegal and MIN_OPENING in app/page.tsx — change them together. It is
+// copied rather than imported because the solve scripts read those out of page.tsx.
+const FACE_ORDER = [2, 3, 4, 5, 6, 1];
+type TableBid = { quantity: number; face: number; zhai: boolean };
+
+function legalAfter(next: TableBid, current: TableBid | null) {
+  if (next.quantity < 1 || next.quantity > 10) return false;
+  if (!current) return next.quantity >= (next.face === 1 || next.zhai ? 2 : 3);
+  if (current.zhai && !next.zhai) return next.quantity >= current.quantity * 2;
+  return next.quantity > current.quantity
+    || (next.quantity === current.quantity && FACE_ORDER.indexOf(next.face) > FACE_ORDER.indexOf(current.face));
+}
+
 export function SolverGrid({ language }: { language: Language }) {
   const [policy, setPolicy] = useState<Policy | null>(null);
   const [quantity, setQuantity] = useState(0);
@@ -168,6 +194,7 @@ export function SolverGrid({ language }: { language: Language }) {
   const [zhai, setZhai] = useState(false);
   const [selected, setSelected] = useState('11346');
   const [arrange, setArrange] = useState<Arrange>('wilds');
+  const [showAllMoves, setShowAllMoves] = useState(false);
   const t = solverCopy[language];
 
   useEffect(() => {
@@ -256,6 +283,54 @@ export function SolverGrid({ language }: { language: Language }) {
     });
     return rows.map((entry, s) => ({ s, pct: entry[1] ? (entry[0] / entry[1]) * 100 : null }));
   }, [policy, state, resolved.face, effectiveZhai, quantity]);
+
+  // Every legal answer to this bid, with how often the solver picks it once all 252
+  // hands are added up by how often each is rolled. Each move's total is kept split
+  // by how much of the target face the bidder held, to colour the bar like the grid.
+  const overall = useMemo(() => {
+    type Row = { action: string; bid: TableBid | null; bluff: number; thin: number; strong: number; total: number };
+    if (!policy) return [] as Row[];
+    const current = quantity === 0 ? null : { quantity, face: resolved.face, zhai: effectiveZhai };
+    // The shipped solve names a bid on ones two ways (BID_Q3_F1 and BID_Q3_F1_ZHAI).
+    // They are one move, so both names point at the same row.
+    const rows = new Map<string, Row>();
+    const byMove = new Map<string, Row>();
+    for (const action of policy.acts) {
+      const bid = action === 'CALL' ? null : parseBid(action);
+      if (bid ? !legalAfter(bid, current) : !current || action !== 'CALL') continue;
+      const move = bid ? `${bid.quantity}-${bid.face}-${bid.zhai}` : action;
+      const row = byMove.get(move) ?? { action, bid, bluff: 0, thin: 0, strong: 0, total: 0 };
+      byMove.set(move, row);
+      rows.set(action, row);
+    }
+
+    let weightSum = 0;
+    policy.hands.forEach((hand, i) => {
+      const row = policy.d[hand]?.[state];
+      if (!row) return;
+      // The build drops anything under 0.5%, so a row can fall just short of 1000.
+      const rowSum = row.reduce((sum, [, permille]) => sum + permille, 0);
+      if (!rowSum) return;
+      weightSum += policy.w[i];
+      for (const [index, permille] of row) {
+        const entry = rows.get(policy.acts[index]);
+        if (!entry) continue;
+        const share = (policy.w[i] * permille) / rowSum;
+        entry.total += share;
+        if (!entry.bid) continue;
+        const held = support(hand, entry.bid.face, entry.bid.zhai);
+        if (held === 0) entry.bluff += share;
+        else if (held === 1) entry.thin += share;
+        else entry.strong += share;
+      }
+    });
+    if (!weightSum) return [] as Row[];
+
+    const scale = 100 / weightSum;
+    return [...byMove.values()]
+      .map((row) => ({ ...row, bluff: row.bluff * scale, thin: row.thin * scale, strong: row.strong * scale, total: row.total * scale }))
+      .sort((a, b) => b.total - a.total);
+  }, [policy, state, quantity, resolved.face, effectiveZhai]);
 
   if (!policy) {
     return <section className="gto-shell"><p className="gto-loading">{t.loading}</p></section>;
@@ -464,6 +539,55 @@ export function SolverGrid({ language }: { language: Language }) {
                 );
               })}
             </div>
+          </div>
+
+          <div className="gto-card">
+            <h3>{t.overall}</h3>
+            <div className="gto-acts">
+              {overall.length === 0 && <p className="gto-freq">{t.overallNone}</p>}
+              {(showAllMoves ? overall : overall.slice(0, OVERALL_TOP)).map((row) => {
+                // Drawn against the most common move, or thirty small bars would all be slivers.
+                const top = Math.max(overall[0].total, 0.0001);
+                const segments = row.bid
+                  ? [
+                      { key: 'bluff', value: row.bluff, colour: BLUFF },
+                      { key: 'thin', value: row.thin, colour: VALUE_THIN },
+                      { key: 'strong', value: row.strong, colour: VALUE_STRONG },
+                    ]
+                  : [{ key: 'call', value: row.total, colour: CHALLENGE }];
+                let offset = 0;
+                return (
+                  <div className="gto-act" key={row.action}>
+                    <span className="gto-act-label">
+                      {segments.map((segment) => {
+                        const left = offset;
+                        const width = (segment.value / top) * 100;
+                        offset += width;
+                        if (width <= 0) return null;
+                        return <u key={segment.key} style={{ left: `${left}%`, width: `${width}%`, background: segment.colour }} />;
+                      })}
+                      <s>
+                        {row.bid
+                          ? `${row.bid.quantity} ${t.of} ${t.faceNames[row.bid.face]}${row.bid.zhai ? ` ${t.zhaiShort}` : ''}`
+                          : t.challenge}
+                      </s>
+                    </span>
+                    <span className="gto-act-pct">{row.total.toFixed(1)}%</span>
+                  </div>
+                );
+              })}
+            </div>
+            {overall.length > OVERALL_TOP && (
+              <button
+                type="button"
+                className="gto-chip gto-chip-sm gto-more"
+                aria-expanded={showAllMoves}
+                onClick={() => setShowAllMoves((open) => !open)}
+              >
+                {showAllMoves ? t.showTop : t.showAll.replace('{n}', String(overall.length))}
+              </button>
+            )}
+            <p className="gto-note">{t.overallNote}</p>
           </div>
 
           <div className="gto-card">

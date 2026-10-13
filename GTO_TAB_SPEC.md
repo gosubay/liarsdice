@@ -190,6 +190,36 @@ Header reads **Current bid**, then in order:
 Bids the solve has no answer for are greyed out and unclickable. Quantity 2 exists
 only as a zhai bid, so picking 2 forces Zhai. A bid on ones is always zhai.
 
+## All hands combined card — added 2026-10-13
+
+A card in the right-hand column, between **Your hand** and **Challenge rate by your
+support**. It answers "how often does the solver make each move here, over every hand?"
+— e.g. 3 × sixes vs 3 × fives vs 2 × ones as an opening.
+
+- **Follows the Current bid controls**, not the selected hand. With "Nothing (You open)"
+  it is the opening mix; with a bid set it is every reply to that bid, Challenge included.
+- **Total = each hand's move percentage × how often that hand is rolled** (`policy.w`),
+  summed over all 252 hands. Each hand's row is re-normalised first, because the build
+  drops anything under 0.5%. The totals add up to 100%.
+- **Every legal move is listed, most-played first**, including ones the solver never
+  makes (0.0%). Only the top 8 show (`OVERALL_TOP`) until **Show all N moves** is pressed.
+- **Each bar is split purple / dim green / bright green** — the share of that move made
+  holding none / one / two-or-more of the face, same colours as the grid. Challenge is red.
+- **Bars are drawn against the most common move**, not against 100%, or thirty small
+  moves would all be slivers. The printed percentage is the true figure.
+- "Legal" is decided by `legalAfter` in `app/solver.tsx`, a copy of `bidIsLegal` in
+  `app/page.tsx`. **Change both together.** The list is limited to moves the shipped
+  solve knows (quantity up to 7).
+- The shipped solve names a bid on ones two ways (`BID_Q3_F1`, `BID_Q3_F1_ZHAI`); the
+  card merges them into one row.
+- **Accuracy:** exact for the opening and the first reply. Deeper in the auction it is
+  approximate, because the solve keeps no bid history and so cannot know which hands
+  would really have reached that bid. The card's note says this in both languages.
+
+Verified 2026-10-13 against an independent recount from `app/gto-policy.json`: opening
+3 × sixes 16.9%, 3 × fives 15.6%, 3 × fours 15.2%; facing 3 × sixes, 4 × fours 19.2%,
+Challenge 9.6%.
+
 ## Known limits of the current solve
 
 State these in the UI; do not call this GTO without qualification.
